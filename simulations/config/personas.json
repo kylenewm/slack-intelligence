@@ -1,0 +1,52 @@
+{
+  "personas": [
+    {
+      "name": "Kyle",
+      "role": "AI PM",
+      "style": "product questions, decisions needed, feature specs",
+      "is_user": true,
+      "slack_user_id": null,
+      "message_types": ["decision_needed", "feature_question", "status_update", "blocker"]
+    },
+    {
+      "name": "Jordan",
+      "role": "CTO",
+      "style": "strategic decisions, company priorities, technical direction, approvals",
+      "is_vip": true,
+      "slack_user_id": null,
+      "message_types": ["strategic", "approval_needed", "escalation", "technical_direction"]
+    },
+    {
+      "name": "Marcus",
+      "role": "Engineer",
+      "style": "bug reports, technical questions, code reviews, implementation details",
+      "is_vip": false,
+      "slack_user_id": null,
+      "message_types": ["bug_report", "technical_question", "pr_review", "implementation"]
+    },
+    {
+      "name": "Lisa",
+      "role": "Engineering Manager",
+      "style": "sprint updates, escalations, resource asks, team coordination",
+      "is_vip": true,
+      "slack_user_id": null,
+      "message_types": ["sprint_update", "escalation", "resource_request", "team_update"]
+    },
+    {
+      "name": "Dave",
+      "role": "Coworker",
+      "style": "casual chat, off-topic, social, watercooler talk",
+      "is_noise": true,
+      "slack_user_id": null,
+      "message_types": ["casual", "social", "off_topic", "meme"]
+    },
+    {
+      "name": "AlertBot",
+      "role": "Bot",
+      "style": "deploy notifications, monitoring alerts, CI/CD status, automated reports",
+      "is_bot": true,
+      "slack_user_id": null,
+      "message_types": ["deploy_alert", "monitoring", "ci_cd", "metrics"]
+    }
+  ]
+}

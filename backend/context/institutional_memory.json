@@ -1,0 +1,72 @@
+[
+  {
+    "issue": "Slack API Rate Limiting (429)",
+    "context": "We process thousands of messages per minute during ingestion bursts.",
+    "solution": "Implemented exponential backoff using the `tenacity` library. We specifically handle the `Retry-After` header from Slack's API responses."
+  },
+  {
+    "issue": "Notion Block Format Errors",
+    "context": "Syncing complex Slack messages with rich text to Notion caused validation errors.",
+    "solution": "Created a Markdown-to-Notion block converter that sanitizes input. We strip unsupported formatting and truncate text blocks to 2000 characters."
+  },
+  {
+    "issue": "OpenAI Context Window Exceeded",
+    "context": "Long Slack threads were crashing the summarization prompt.",
+    "solution": "Implemented a token-counting sliding window. We prioritize the first message (context) and the last 10 messages (current status), summarizing the middle if necessary."
+  },
+  {
+    "issue": "Asyncio Event Loop Conflicts",
+    "context": "Mixing synchronous `requests` calls with `asyncio` in the same service caused blocking.",
+    "solution": "Migrated all HTTP calls to `httpx` (async) and ensured `slack_sdk.WebClient` is used in async mode or within thread executors."
+  },
+  {
+    "issue": "Duplicate Jira Tickets",
+    "context": "Multiple users reporting the same bug caused ticket spam.",
+    "solution": "Added a vector similarity check (embeddings) against recent tickets before creation. If similarity > 0.85, we post a comment on the existing ticket instead of creating a new one."
+  },
+  {
+    "issue": "Jira Description Must Be ADF",
+    "context": "Jira API rejected plain text descriptions with error: 'Operation value must be an Atlassian Document'.",
+    "solution": "Modified `jira_service.py` to convert all plain text descriptions to Atlassian Document Format (ADF) before sending to Jira API. ADF requires a specific JSON structure with type='doc', version=1, and content array."
+  },
+  {
+    "issue": "Streamlit Sidebar Toggle Hidden by Custom CSS",
+    "context": "Custom CSS to hide Streamlit's default toolbar also hid the sidebar collapse/expand button, making the sidebar inaccessible once closed.",
+    "solution": "Avoid hiding Streamlit's native header/toolbar entirely. Keep `.block-container` padding around 2rem to ensure the sidebar toggle button remains visible and clickable."
+  },
+  {
+    "issue": "Streamlit Infinite Rerun Loop",
+    "context": "Placing `st.rerun()` calls outside conditional blocks (e.g., button clicks) caused the app to re-render continuously, breaking all functionality.",
+    "solution": "Ensure all `st.rerun()` calls are strictly within `if` blocks triggered by user interaction (e.g., `if st.button(...):`) to prevent unintended infinite loops."
+  },
+  {
+    "issue": "Streamlit Nested Expanders Not Allowed",
+    "context": "Attempting to nest `st.expander()` inside another expander raised StreamlitAPIException.",
+    "solution": "Replace nested expanders with `st.markdown()` headers and `st.info()` boxes, or use `st.container(border=True)` for visual grouping instead."
+  },
+  {
+    "issue": "Streamlit CSS Text Color Conflicts",
+    "context": "Global CSS rules setting text to white for sidebar made main content unreadable when cards had white backgrounds.",
+    "solution": "Scope CSS selectors carefully: use `.sidebar .stMarkdown` for sidebar white text and `.main .block-container` for dark text. Use inline styles with `unsafe_allow_html=True` for specific elements that need guaranteed colors."
+  },
+  {
+    "issue": "Streamlit Widget KeyError on Dynamic Keys",
+    "context": "Streamlit widgets without explicit `key` parameters can cause KeyError when the UI structure changes between reruns.",
+    "solution": "Always provide explicit `key` attributes to `st.radio`, `st.selectbox`, `st.text_input` and other stateful widgets (e.g., `key='nav_radio'`) to prevent state conflicts."
+  },
+  {
+    "issue": "FastAPI Endpoint Path Mismatch",
+    "context": "Frontend calling `/api/jira/ticket` but backend had endpoint at `/api/slack/integrations/jira/create`.",
+    "solution": "Always verify the exact API route in `routes.py` before making frontend requests. Use browser dev tools Network tab to debug 404 errors."
+  },
+  {
+    "issue": "SQLAlchemy Object vs Dict Confusion",
+    "context": "Services expecting dict input received SQLAlchemy model objects, causing `'SlackMessage' object has no attribute 'get'` errors.",
+    "solution": "Create explicit `_to_dict()` conversion methods in CacheService and call them before passing data to services that expect dictionaries."
+  },
+  {
+    "issue": "Streamlit Dark Input Fields",
+    "context": "Text areas and input fields appeared as dark boxes with invisible text due to conflicting CSS.",
+    "solution": "Add placeholder text to inputs and avoid global CSS that affects Streamlit's native input styling. Use scoped inline styles for labels and descriptions."
+  }
+]

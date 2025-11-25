@@ -1,0 +1,46 @@
+{
+  "channels": {
+    "priority": [
+      {
+        "name": "engineering-alerts",
+        "id": null,
+        "score_modifier": 15,
+        "description": "Critical engineering notifications"
+      },
+      {
+        "name": "incidents",
+        "id": null,
+        "score_modifier": 20,
+        "description": "Production incidents and outages"
+      }
+    ],
+    "normal": [
+      {
+        "name": "general",
+        "id": null,
+        "score_modifier": 0,
+        "description": "General team discussion"
+      },
+      {
+        "name": "product",
+        "id": null,
+        "score_modifier": 0,
+        "description": "Product team discussions"
+      }
+    ],
+    "muted": [
+      {
+        "name": "random",
+        "id": null,
+        "score_modifier": -20,
+        "description": "Random off-topic chat"
+      },
+      {
+        "name": "watercooler",
+        "id": null,
+        "score_modifier": -20,
+        "description": "Social and casual conversation"
+      }
+    ]
+  }
+}
