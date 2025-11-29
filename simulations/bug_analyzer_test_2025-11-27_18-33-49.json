@@ -1,0 +1,325 @@
+[
+  {
+    "scenario_id": "database_error",
+    "scenario_name": "Database Integrity Error",
+    "message": {
+      "text": "IntegrityError when saving message to database. Foreign key constraint failed on channel_id. Stack trace shows error in cache_service.py line 45.",
+      "channel_name": "engineering-alerts",
+      "user_name": "AlertBot",
+      "priority_score": 95
+    },
+    "timestamp": "2025-11-27T18:33:35.857481",
+    "analysis": {
+      "patterns": {
+        "exception_types": [
+          "IntegrityError"
+        ],
+        "status_codes": [],
+        "file_mentions": [
+          "cache_service.py"
+        ],
+        "class_mentions": [],
+        "error_description": "IntegrityError occurred when saving a message to the database due to a foreign key constraint failure on channel_id.",
+        "likely_cause": "The foreign key constraint on channel_id may not be satisfied, possibly due to a missing or invalid reference.",
+        "keywords": [
+          "exception"
+        ]
+      },
+      "codebase_matches": [
+        {
+          "file": "backend/database/cache_service.py",
+          "line": 1,
+          "match_type": "file_reference",
+          "snippet": "\"\"\"\nCache service for Slack messages and insights.\nHandles CRUD operations and deduplication.\n\"\"\"\n\nimport logging\nfrom sqlalchemy.orm import Session\nfrom typing import Optional, Dict, Any, List\nfrom datetime import datetime, timedelta\n\nfrom .models import SlackMessage, MessageInsight, SyncLog, UserP..."
+        },
+        {
+          "file": "backend/services/code_bug_analyzer.py",
+          "line": 99,
+          "match_type": "grep_match",
+          "term": "IntegrityError",
+          "snippet": "Extract the following (return empty arrays if not found):"
+        },
+        {
+          "file": "backend/services/code_bug_analyzer.py",
+          "line": 100,
+          "match_type": "grep_match",
+          "term": "IntegrityError",
+          "snippet": "1. exception_types: Python exception names mentioned or implied (e.g., \"TypeError\", \"IntegrityError\", \"ValidationError\")"
+        },
+        {
+          "file": "backend/services/code_bug_analyzer.py",
+          "line": 101,
+          "match_type": "grep_match",
+          "term": "IntegrityError",
+          "snippet": "2. status_codes: HTTP status codes mentioned or implied (e.g., \"500\", \"404\", \"429\")"
+        }
+      ],
+      "memory_matches": [
+        {
+          "issue": "Streamlit Nested Expanders Not Allowed",
+          "context": "Attempting to nest `st.expander()` inside another expander raised StreamlitAPIException.",
+          "solution": "Replace nested expanders with `st.markdown()` headers and `st.info()` boxes, or use `st.container(border=True)` for visual grouping instead.",
+          "relevance": 0.3,
+          "matched_terms": [
+            "exception"
+          ]
+        }
+      ],
+      "debugging_steps": [
+        "Check database foreign key constraints",
+        "Verify unique constraint violations",
+        "Review code in cache_service.py for recent changes",
+        "Past solution for 'Streamlit Nested Expanders Not Allowed': Replace nested expanders with `st.markdown()` headers and `st.info()` boxes, or use `st.container(bo...",
+        "Start debugging from backend/database/cache_service.py"
+      ],
+      "summary": "Detected exceptions: IntegrityError | Related files: cache_service.py | Found references in: cache_service.py, code_bug_analyzer.py | Similar past issues: 1 found | Most relevant: 'Streamlit Nested Expanders Not Allowed'"
+    },
+    "success": true
+  },
+  {
+    "scenario_id": "rate_limit",
+    "scenario_name": "Slack API Rate Limit",
+    "message": {
+      "text": "Slack API returning 429 errors. Ingestion worker crashed. We're not handling the Retry-After header properly.",
+      "channel_name": "incidents",
+      "user_name": "PagerDuty",
+      "priority_score": 98
+    },
+    "timestamp": "2025-11-27T18:33:38.271257",
+    "analysis": {
+      "patterns": {
+        "exception_types": [],
+        "status_codes": [
+          "429"
+        ],
+        "file_mentions": [],
+        "class_mentions": [],
+        "error_description": "The ingestion worker crashed due to Slack API returning 429 errors.",
+        "likely_cause": "The issue is likely caused by not handling the Retry-After header properly.",
+        "keywords": [
+          "http error",
+          "rate limit"
+        ]
+      },
+      "codebase_matches": [],
+      "memory_matches": [
+        {
+          "issue": "Slack API Rate Limiting (429)",
+          "context": "We process thousands of messages per minute during ingestion bursts.",
+          "solution": "Implemented exponential backoff using the `tenacity` library. We specifically handle the `Retry-After` header from Slack's API responses.",
+          "relevance": 0.924031007751938,
+          "matched_terms": [
+            "429",
+            "rate limit"
+          ]
+        }
+      ],
+      "debugging_steps": [
+        "Implement exponential backoff for API calls",
+        "Check for Retry-After header and honor it",
+        "Past solution for 'Slack API Rate Limiting (429)': Implemented exponential backoff using the `tenacity` library. We specifically handle the `Retry-Afte..."
+      ],
+      "summary": "HTTP errors: 429 | Similar past issues: 1 found | Most relevant: 'Slack API Rate Limiting (429)'"
+    },
+    "success": true
+  },
+  {
+    "scenario_id": "notion_sync",
+    "scenario_name": "Notion Sync Failure",
+    "message": {
+      "text": "Notion pages showing raw JSON instead of formatted text. The rich text blocks in notion_service.py aren't converting properly. ValidationError on nested blocks.",
+      "channel_name": "product-feedback",
+      "user_name": "Sarah",
+      "priority_score": 85
+    },
+    "timestamp": "2025-11-27T18:33:40.047518",
+    "analysis": {
+      "patterns": {
+        "exception_types": [
+          "ValidationError"
+        ],
+        "status_codes": [],
+        "file_mentions": [
+          "notion_service.py"
+        ],
+        "class_mentions": [],
+        "error_description": "Notion pages are displaying raw JSON instead of formatted text.",
+        "likely_cause": "The rich text blocks in notion_service.py aren't converting properly.",
+        "keywords": [
+          "exception"
+        ]
+      },
+      "codebase_matches": [
+        {
+          "file": "backend/integrations/notion_service.py",
+          "line": 1,
+          "match_type": "file_reference",
+          "snippet": "\"\"\"\nNotion integration service for creating tasks from Slack messages.\n\"\"\"\n\nimport asyncio\nimport logging\nfrom typing import Optional, List, Dict, Any\nimport httpx\nfrom datetime import datetime\n\nlogger = logging.getLogger(__name__)\n\n\nclass NotionTaskExtractor:\n    \"\"\"Extract actionable tasks from me..."
+        },
+        {
+          "file": "backend/services/code_bug_analyzer.py",
+          "line": 99,
+          "match_type": "grep_match",
+          "term": "ValidationError",
+          "snippet": "Extract the following (return empty arrays if not found):"
+        },
+        {
+          "file": "backend/services/code_bug_analyzer.py",
+          "line": 100,
+          "match_type": "grep_match",
+          "term": "ValidationError",
+          "snippet": "1. exception_types: Python exception names mentioned or implied (e.g., \"TypeError\", \"IntegrityError\", \"ValidationError\")"
+        },
+        {
+          "file": "backend/services/code_bug_analyzer.py",
+          "line": 101,
+          "match_type": "grep_match",
+          "term": "ValidationError",
+          "snippet": "2. status_codes: HTTP status codes mentioned or implied (e.g., \"500\", \"404\", \"429\")"
+        }
+      ],
+      "memory_matches": [
+        {
+          "issue": "Streamlit Nested Expanders Not Allowed",
+          "context": "Attempting to nest `st.expander()` inside another expander raised StreamlitAPIException.",
+          "solution": "Replace nested expanders with `st.markdown()` headers and `st.info()` boxes, or use `st.container(border=True)` for visual grouping instead.",
+          "relevance": 0.3,
+          "matched_terms": [
+            "exception"
+          ]
+        }
+      ],
+      "debugging_steps": [
+        "Review Pydantic model field definitions",
+        "Check input data format and types",
+        "Review code in notion_service.py for recent changes",
+        "Past solution for 'Streamlit Nested Expanders Not Allowed': Replace nested expanders with `st.markdown()` headers and `st.info()` boxes, or use `st.container(bo...",
+        "Start debugging from backend/integrations/notion_service.py"
+      ],
+      "summary": "Detected exceptions: ValidationError | Related files: notion_service.py | Found references in: notion_service.py, code_bug_analyzer.py | Similar past issues: 1 found | Most relevant: 'Streamlit Nested Expanders Not Allowed'"
+    },
+    "success": true
+  },
+  {
+    "scenario_id": "api_500",
+    "scenario_name": "API 500 Error",
+    "message": {
+      "text": "500 Internal Server Error on /api/slack/sync endpoint. Started after the latest deploy. TypeError in routes.py - 'NoneType' has no attribute 'get'",
+      "channel_name": "engineering-alerts",
+      "user_name": "Marcus",
+      "priority_score": 92
+    },
+    "timestamp": "2025-11-27T18:33:43.960039",
+    "analysis": {
+      "patterns": {
+        "exception_types": [
+          "TypeError"
+        ],
+        "status_codes": [
+          "500"
+        ],
+        "file_mentions": [
+          "routes.py"
+        ],
+        "class_mentions": [],
+        "error_description": "A 500 Internal Server Error occurred on the /api/slack/sync endpoint due to a TypeError.",
+        "likely_cause": "The error is likely caused by attempting to access the 'get' attribute on a NoneType object.",
+        "keywords": [
+          "exception",
+          "http error",
+          "server error"
+        ]
+      },
+      "codebase_matches": [
+        {
+          "file": "backend/api/routes.py",
+          "line": 1,
+          "match_type": "file_reference",
+          "snippet": "\"\"\"\nFastAPI routes for Slack Intelligence API.\n\"\"\"\n\nfrom fastapi import APIRouter, HTTPException, Query\nfrom typing import List, Optional\n\nfrom .schemas import (\n    SmartInboxResponse,\n    MessageDetail,\n    SyncResponse,\n    SearchResponse,\n    StatsResponse\n)\nfrom ..services.inbox_service import ..."
+        },
+        {
+          "file": "backend/ingestion/message_parser.py",
+          "line": 61,
+          "match_type": "grep_match",
+          "term": "TypeError",
+          "snippet": "try:"
+        },
+        {
+          "file": "backend/ingestion/message_parser.py",
+          "line": 63,
+          "match_type": "grep_match",
+          "term": "TypeError",
+          "snippet": "except (ValueError, TypeError):"
+        },
+        {
+          "file": "backend/services/code_bug_analyzer.py",
+          "line": 99,
+          "match_type": "grep_match",
+          "term": "TypeError",
+          "snippet": "Extract the following (return empty arrays if not found):"
+        }
+      ],
+      "memory_matches": [
+        {
+          "issue": "Streamlit Nested Expanders Not Allowed",
+          "context": "Attempting to nest `st.expander()` inside another expander raised StreamlitAPIException.",
+          "solution": "Replace nested expanders with `st.markdown()` headers and `st.info()` boxes, or use `st.container(border=True)` for visual grouping instead.",
+          "relevance": 0.3,
+          "matched_terms": [
+            "exception"
+          ]
+        }
+      ],
+      "debugging_steps": [
+        "Check function parameter types",
+        "Verify None values are handled",
+        "Check server logs for stack traces",
+        "Verify database connectivity",
+        "Review code in routes.py for recent changes",
+        "Past solution for 'Streamlit Nested Expanders Not Allowed': Replace nested expanders with `st.markdown()` headers and `st.info()` boxes, or use `st.container(bo...",
+        "Start debugging from backend/api/routes.py"
+      ],
+      "summary": "Detected exceptions: TypeError | HTTP errors: 500 | Related files: routes.py | Found references in: message_parser.py, routes.py | Similar past issues: 1 found | Most relevant: 'Streamlit Nested Expanders Not Allowed'"
+    },
+    "success": true
+  },
+  {
+    "scenario_id": "jira_adf",
+    "scenario_name": "Jira Description Error",
+    "message": {
+      "text": "Jira API rejecting ticket creation with error: 'Operation value must be an Atlassian Document'. Plain text descriptions not working in jira_service.py",
+      "channel_name": "engineering",
+      "user_name": "Kyle",
+      "priority_score": 80
+    },
+    "timestamp": "2025-11-27T18:33:46.111971",
+    "analysis": {
+      "patterns": {
+        "exception_types": [],
+        "status_codes": [],
+        "file_mentions": [
+          "jira_service.py"
+        ],
+        "class_mentions": [],
+        "error_description": "Jira API is rejecting ticket creation due to an invalid operation value.",
+        "likely_cause": "Plain text descriptions are not accepted as valid input for the operation value.",
+        "keywords": []
+      },
+      "codebase_matches": [
+        {
+          "file": "backend/integrations/jira_service.py",
+          "line": 1,
+          "match_type": "file_reference",
+          "snippet": "\"\"\"\nJira integration service for creating tickets from Slack messages.\n\"\"\"\n\nimport logging\nfrom typing import Dict, Any, Optional, List\nimport httpx\nfrom slack_sdk.web.async_client import AsyncWebClient\n\nfrom ..config import settings\n\nlogger = logging.getLogger(__name__)\n\n\nclass JiraService:\n    \"\"\"..."
+        }
+      ],
+      "memory_matches": [],
+      "debugging_steps": [
+        "Review code in jira_service.py for recent changes",
+        "Start debugging from backend/integrations/jira_service.py"
+      ],
+      "summary": "Related files: jira_service.py | Found references in: jira_service.py"
+    },
+    "success": true
+  }
+]

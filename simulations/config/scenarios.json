@@ -1,0 +1,277 @@
+{
+  "scenarios": [
+    {
+      "id": "production-outage",
+      "title": "Production Outage - API Down",
+      "priority": "critical",
+      "expected_score_min": 90,
+      "channel": "incidents",
+      "description": "Tests: Alert bot + VIP escalation in priority channel",
+      "messages": [
+        {
+          "persona": "Metrics",
+          "text": "🚨 ALERT: API response time > 10s. Error rate spiking to 45%. Affected: /api/v1/conversations endpoint",
+          "delay": 1
+        },
+        {
+          "persona": "Alex Rivera",
+          "text": "On it - checking the logs now. Seeing connection pool exhaustion on the primary DB",
+          "delay": 2
+        },
+        {
+          "persona": "Marcus Johnson",
+          "text": "I pushed a change to the query optimizer yesterday. Could be related?",
+          "delay": 2
+        },
+        {
+          "persona": "Jordan Patel",
+          "text": "@Kyle This is affecting 3 enterprise customers right now. What's our ETA on a fix? Should we rollback?",
+          "delay": 2,
+          "mention_user": true
+        }
+      ]
+    },
+    {
+      "id": "customer-escalation",
+      "title": "Customer Escalation - CEO Call",
+      "priority": "critical",
+      "expected_score_min": 95,
+      "channel": "incidents",
+      "description": "Tests: CTO (highest VIP) in priority channel with urgent request",
+      "messages": [
+        {
+          "persona": "Sarah Chen",
+          "text": "Just got off a call with Acme Corp's CEO. They're saying our system quoted wrong pricing on 5 deals this week. This is a P0.",
+          "delay": 1
+        },
+        {
+          "persona": "Marcus Johnson",
+          "text": "Looking at logs... found it. Edge case in the discount calculation when multiple promo codes are stacked",
+          "delay": 3
+        },
+        {
+          "persona": "Sarah Chen",
+          "text": "@Kyle I need you on a call with their CTO at 3pm to walk through the fix. Can you prepare a post-mortem doc?",
+          "delay": 2,
+          "mention_user": true
+        }
+      ]
+    },
+    {
+      "id": "ab-test-results",
+      "title": "A/B Test Results Review",
+      "priority": "high",
+      "expected_score_min": 75,
+      "channel": "product",
+      "description": "Tests: Data-driven discussion with CTO decision request",
+      "messages": [
+        {
+          "persona": "Metrics",
+          "text": "📊 A/B Test Results: New onboarding flow\n• Variant B: +23% completion rate\n• Sample: 4,200 users\n• Statistical significance: 98%",
+          "delay": 1
+        },
+        {
+          "persona": "Marcus Johnson",
+          "text": "Nice! The simplified form really helped. Should we ship it?",
+          "delay": 2
+        },
+        {
+          "persona": "Jordan Patel",
+          "text": "Before we ship - did we check mobile vs desktop breakdown? Last time mobile lagged behind",
+          "delay": 2
+        },
+        {
+          "persona": "Sarah Chen",
+          "text": "@Kyle Good results. Can you write up the go/no-go recommendation for tomorrow's product review?",
+          "delay": 2,
+          "mention_user": true
+        }
+      ]
+    },
+    {
+      "id": "architecture-decision",
+      "title": "Architecture Discussion - Vector DB",
+      "priority": "high",
+      "expected_score_min": 70,
+      "channel": "engineering",
+      "description": "Tests: Technical discussion with budget/roadmap implications",
+      "messages": [
+        {
+          "persona": "Marcus Johnson",
+          "text": "Been researching vector databases for the semantic search feature. Pinecone vs Weaviate vs pgvector - thoughts?",
+          "delay": 1
+        },
+        {
+          "persona": "Alex Rivera",
+          "text": "pgvector would be simplest since we're already on Postgres. But Pinecone has better performance at scale",
+          "delay": 3
+        },
+        {
+          "persona": "Marcus Johnson",
+          "text": "True. We're looking at ~10M vectors initially. Pinecone's free tier won't cut it",
+          "delay": 2
+        },
+        {
+          "persona": "Jordan Patel",
+          "text": "@Kyle This affects our Q4 roadmap and budget. Can you put together a comparison doc with cost projections?",
+          "delay": 2,
+          "mention_user": true
+        }
+      ]
+    },
+    {
+      "id": "sprint-planning",
+      "title": "Sprint Planning Update",
+      "priority": "medium",
+      "expected_score_min": 50,
+      "expected_score_max": 75,
+      "channel": "engineering",
+      "description": "Tests: Routine team update, no urgent action needed",
+      "messages": [
+        {
+          "persona": "Jordan Patel",
+          "text": "Morning team! Quick async standup - what's everyone working on this week?",
+          "delay": 1
+        },
+        {
+          "persona": "Marcus Johnson",
+          "text": "Finishing the conversation context persistence. Should be ready for QA by Wednesday",
+          "delay": 3
+        },
+        {
+          "persona": "Alex Rivera",
+          "text": "Setting up the new staging environment. Hit some IAM issues but should be resolved today",
+          "delay": 2
+        },
+        {
+          "persona": "Jordan Patel",
+          "text": "Great progress. Reminder: stakeholder demo Friday at 2pm. Make sure staging is stable by then",
+          "delay": 3
+        }
+      ]
+    },
+    {
+      "id": "casual-lunch",
+      "title": "Casual Lunch Chat",
+      "priority": "low",
+      "expected_score_max": 30,
+      "channel": "watercooler",
+      "description": "Tests: Casual chat in muted channel should be low priority",
+      "messages": [
+        {
+          "persona": "Marcus Johnson",
+          "text": "Anyone tried that new ramen place on 5th? Thinking about lunch",
+          "delay": 1
+        },
+        {
+          "persona": "Alex Rivera",
+          "text": "The one with the spicy miso? It's 🔥 - get the extra chashu",
+          "delay": 2
+        },
+        {
+          "persona": "Marcus Johnson",
+          "text": "Nice, I'm in. Anyone else want to join? Going around 12:30",
+          "delay": 2
+        }
+      ]
+    },
+    {
+      "id": "vip-in-muted",
+      "title": "CTO Casual Message",
+      "priority": "low",
+      "expected_score_min": 20,
+      "expected_score_max": 45,
+      "channel": "watercooler",
+      "description": "Tests: VIP (CTO) in muted channel - VIP boost partially countered by mute penalty",
+      "messages": [
+        {
+          "persona": "Sarah Chen",
+          "text": "Great work on the release everyone! Taking the team out for drinks Friday to celebrate 🎉",
+          "delay": 1
+        },
+        {
+          "persona": "Marcus Johnson",
+          "text": "Thanks Sarah! Really appreciate it",
+          "delay": 2
+        }
+      ]
+    },
+    {
+      "id": "general-announcement",
+      "title": "General Announcement",
+      "priority": "medium",
+      "expected_score_min": 40,
+      "expected_score_max": 65,
+      "channel": "general",
+      "description": "Tests: Company-wide announcement in general channel",
+      "messages": [
+        {
+          "persona": "Jordan Patel",
+          "text": "Heads up team - we're doing a company-wide all-hands tomorrow at 10am. Check your calendar for the invite.",
+          "delay": 1
+        },
+        {
+          "persona": "Alex Rivera",
+          "text": "Got it! Will there be a recording for folks in different timezones?",
+          "delay": 2
+        },
+        {
+          "persona": "Jordan Patel",
+          "text": "Yes, recording will be posted in Notion within 24 hours",
+          "delay": 2
+        }
+      ]
+    }
+  ],
+  "edge_cases": [
+    {
+      "id": "urgent-keyword-test",
+      "title": "Urgent Keyword Without VIP",
+      "description": "Tests: Urgent language from non-VIP should still score high",
+      "channel": "engineering",
+      "messages": [
+        {
+          "persona": "Alex Rivera",
+          "text": "URGENT: Production database is at 98% capacity. We need to scale up NOW or we'll have an outage in ~2 hours",
+          "delay": 1
+        }
+      ],
+      "expected_score_min": 85
+    },
+    {
+      "id": "vip-fyi",
+      "title": "VIP Low-Priority FYI",
+      "description": "Tests: VIP with clearly non-urgent content",
+      "channel": "general",
+      "messages": [
+        {
+          "persona": "Sarah Chen",
+          "text": "FYI - updated the team wiki with the new branding guidelines. No action needed, just awareness.",
+          "delay": 1
+        }
+      ],
+      "expected_score_min": 50,
+      "expected_score_max": 75
+    },
+    {
+      "id": "non-vip-question",
+      "title": "Direct Question from Non-VIP",
+      "description": "Tests: Direct question requesting decision/input",
+      "channel": "product",
+      "messages": [
+        {
+          "persona": "Marcus Johnson",
+          "text": "@Kyle Quick question - for the new feature, should we support bulk imports or just single items for MVP?",
+          "delay": 1,
+          "mention_user": true
+        }
+      ],
+      "expected_score_min": 70
+    }
+  ],
+  "llm_prompts": {
+    "variety_mode": "Generate a realistic Slack conversation for a tech company. Include 3-4 messages between team members. Make it feel natural with occasional typos and emoji usage.",
+    "edge_case_generator": "Generate an edge case scenario that would test the prioritization system's ability to handle ambiguous situations."
+  }
+}
+

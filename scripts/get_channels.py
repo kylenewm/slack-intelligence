@@ -14,7 +14,9 @@ def get_channels():
     """Get list of channels the main bot can access"""
     
     # Use the main Slack Intelligence bot (has proper scopes)
-    client = WebClient(token=os.getenv("SLACK_BOT_TOKEN"))
+    # Try personal token first, fallback to default
+    token = os.getenv("SLACK_BOT_TOKEN_PERSONAL") or os.getenv("SLACK_BOT_TOKEN")
+    client = WebClient(token=token)
     
     try:
         result = client.conversations_list(

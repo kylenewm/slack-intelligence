@@ -110,19 +110,35 @@ async def main():
     
     # Run research if requested
     research_summary = None
+    code_analysis = None
     ticket_type = "general_task"
     
     if do_research and exa:
-        print("\n🔍 Running Exa research...")
+        print("\n🔍 Running research...")
         
         research = await exa.research_for_ticket(selected_msg)
         detection = research.get('detection', {})
         ticket_type = detection.get('ticket_type', 'general_task')
+        analysis_type = research.get('analysis_type', 'exa_research')
         
         print(f"   ✅ Type: {ticket_type}")
-        print(f"   📊 Research: {detection.get('needs_research', False)}")
+        print(f"   📊 Analysis: {analysis_type}")
         
-        if research.get('sources'):
+        if analysis_type == 'code_bug':
+            # Bug analysis - use code analyzer results
+            code_analysis = research.get('code_analysis', {})
+            patterns = code_analysis.get('patterns', {})
+            print(f"   🐛 Bug Analysis:")
+            if patterns.get('exception_types'):
+                print(f"      Exceptions: {', '.join(patterns['exception_types'])}")
+            if patterns.get('status_codes'):
+                print(f"      Status Codes: {', '.join(patterns['status_codes'])}")
+            print(f"      Codebase Matches: {len(code_analysis.get('codebase_matches', []))}")
+            print(f"      Memory Matches: {len(code_analysis.get('memory_matches', []))}")
+            print(f"      Debugging Steps: {len(code_analysis.get('debugging_steps', []))}")
+            research_summary = research.get('research_summary')
+        elif research.get('sources'):
+            # Exa research
             print(f"   📚 Found {len(research['sources'])} sources")
             research_summary = research.get('research_summary')
         else:
@@ -135,7 +151,12 @@ async def main():
     print(f"\n🎫 Creating ticket:")
     print(f"   Title: {summary[:50]}...")
     print(f"   Type: {issue_type}")
-    print(f"   Research: {'✅ Included' if research_summary else '❌ None'}")
+    if code_analysis:
+        print(f"   Analysis: ✅ Code Bug Analysis included")
+    elif research_summary:
+        print(f"   Research: ✅ Exa Research included")
+    else:
+        print(f"   Research: ❌ None")
     
     # Create ticket
     print("\n🚀 Creating Jira ticket...")
@@ -145,7 +166,8 @@ async def main():
         summary=summary,
         issue_type=issue_type,
         research_summary=research_summary,
-        ticket_type=ticket_type
+        ticket_type=ticket_type,
+        code_analysis=code_analysis
     )
     
     # Display result

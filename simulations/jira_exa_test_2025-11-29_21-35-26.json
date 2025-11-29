@@ -1,0 +1,44 @@
+{
+  "timestamp": "2025-11-29_21-35-26",
+  "message": {
+    "text": "[SIM] Heads up team - we're doing a company-wide all-hands tomorrow at 10am. Check your calendar for the invite.",
+    "user": "Manager Bot",
+    "channel": "general",
+    "priority_score": 75
+  },
+  "research": {
+    "type": "exa_research",
+    "ticket_type": "general_task",
+    "research_time_seconds": 1.600783,
+    "sources_count": 0
+  },
+  "quality": {
+    "source_evaluation": {
+      "score": 0,
+      "grade": "F",
+      "issues": [
+        "No sources found"
+      ],
+      "strengths": [],
+      "source_count": 0,
+      "domain_diversity": 0,
+      "avg_content_length": 0
+    },
+    "summary_evaluation": {
+      "score": 0,
+      "grade": "F",
+      "issues": [
+        "No summary generated"
+      ],
+      "strengths": [],
+      "length": 0,
+      "cited_sources": 0,
+      "technical_terms": 0
+    }
+  },
+  "jira_ticket": {
+    "key": null,
+    "url": null,
+    "issue_type": "Task"
+  }
+}

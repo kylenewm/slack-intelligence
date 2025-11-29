@@ -1,6 +1,10 @@
 """
-AI-powered message prioritization.
-Uses LLM to score messages by importance/urgency.
+AI-powered message prioritization with deterministic multipliers.
+
+Hybrid approach:
+1. LLM scores message CONTENT only (0-100)
+2. Deterministic multipliers applied for VIP people, channels
+3. Diminishing returns formula prevents scores from exceeding 100
 """
 
 import logging
@@ -16,19 +20,45 @@ logger = logging.getLogger(__name__)
 # Initialize OpenAI client
 openai_client = AsyncOpenAI(api_key=settings.OPENAI_API_KEY)
 
+# =============================================================================
+# SCORING MULTIPLIERS (Deterministic)
+# =============================================================================
+VIP_MULTIPLIER = 2.0               # 2x boost for VIP people
+MENTION_MULTIPLIER = 2.0           # 2x boost for direct @mentions
+PRIORITY_CHANNEL_MULTIPLIER = 1.5  # 1.5x boost for priority channels
+MUTED_CHANNEL_MULTIPLIER = 0.5     # 0.5x penalty for muted channels
+
 
 class MessagePrioritizer:
-    """AI-powered message prioritization"""
+    """AI-powered message prioritization with deterministic multipliers"""
     
     def __init__(self, user_preferences: Dict[str, Any] = None):
         """
         Initialize prioritizer.
         
         Args:
-            user_preferences: Dict with key_people, key_channels, key_keywords
+            user_preferences: Dict with key_people, key_channels, mute_channels
         """
-        self.user_preferences = user_preferences or settings.get_user_preferences()
         self.cache = CacheService()
+        
+        # Load preferences: passed in > database > env file fallback
+        if user_preferences:
+            self.user_preferences = user_preferences
+        else:
+            # Try database first
+            db_prefs = self.cache.get_user_preferences("default")
+            if db_prefs and any([db_prefs.get('key_people'), db_prefs.get('key_channels'), db_prefs.get('mute_channels')]):
+                self.user_preferences = db_prefs
+            else:
+                # Fallback to env file
+                self.user_preferences = settings.get_user_preferences()
+        
+        # Normalize preferences for matching (lowercase)
+        self.vip_people = [p.lower().strip() for p in self.user_preferences.get('key_people', [])]
+        self.priority_channels = [c.lower().strip() for c in self.user_preferences.get('key_channels', [])]
+        self.muted_channels = [c.lower().strip() for c in self.user_preferences.get('mute_channels', [])]
+        
+        logger.info(f"📋 Loaded preferences: VIPs={self.vip_people}, Priority={self.priority_channels}, Muted={self.muted_channels}")
     
     async def prioritize_new_messages(self) -> Dict[str, Any]:
         """
@@ -174,8 +204,9 @@ class MessagePrioritizer:
                         logger.info(f"   Retrying attempt {attempt + 2}/{max_retries}...")
                         continue
                 
-                # Merge priorities back into messages
-                return self._merge_priorities(messages, priorities)
+                # Merge priorities back into messages, then apply multipliers
+                merged = self._merge_priorities(messages, priorities)
+                return self._apply_multipliers(merged)
                 
             except json.JSONDecodeError as e:
                 logger.warning(f"⚠️  JSON decode error on attempt {attempt + 1}: {e}")
@@ -299,7 +330,10 @@ class MessagePrioritizer:
     
     def _build_prioritization_prompt(self, messages_text: str, message_count: int) -> str:
         """
-        Build the prioritization prompt with user context.
+        Build the prioritization prompt - CONTENT ONLY.
+        
+        The LLM scores based on message content/urgency.
+        VIP/channel multipliers are applied separately after LLM scoring.
         
         Args:
             messages_text: Formatted messages
@@ -308,76 +342,48 @@ class MessagePrioritizer:
         Returns:
             Complete prompt string
         """
-        # Extract user preferences
-        key_people = self.user_preferences.get('key_people', [])
-        key_keywords = self.user_preferences.get('key_keywords', [])
-        key_channels = self.user_preferences.get('key_channels', [])
-        
-        prompt = f"""Analyze these {message_count} Slack messages and assign priority scores (0-100) and categories.
+        prompt = f"""Score these {message_count} Slack messages by CONTENT URGENCY only (0-100).
 
-PRIORITY SCORING GUIDELINES:
+DO NOT consider who sent the message or which channel. Only score the MESSAGE CONTENT.
 
-🚨 URGENT (90-100): Requires immediate action
-• Direct questions explicitly asking for your input or decision
-• Critical blockers mentioned (deployment, production issue, downtime)
-• Time-sensitive with explicit deadline (today, EOD, urgent)
-• Messages containing: "can you", "need your", "waiting on you", "blocking"
-• Emergency or crisis situations
+SCORING GUIDELINES:
 
-🔥 HIGH PRIORITY (70-89): Important but not immediate
-• You're mentioned in important discussions
-• Key project updates or decisions being made  
-• Questions from stakeholders (but not blocking them)
-• Important meetings or action items
-• Messages from key people about key topics
+🚨 URGENT (90-100):
+• Production issues, outages, critical errors
+• Explicit deadlines: "today", "EOD", "ASAP", "urgent"
+• Direct blocking requests: "waiting on you", "can you"
+• Emergencies or crises
 
-📋 MEDIUM (50-69): FYI / Context
-• Relevant team discussions you should know about
-• Updates on projects you're involved with
+🔥 HIGH (70-89):
+• Important decisions being discussed
+• Action items or deliverables mentioned
+• Technical issues requiring attention
+• Meeting requests or deadlines
+
+📋 MEDIUM (50-69):
+• Project updates or status reports
 • Informational announcements
-• General team communication on relevant topics
-• Discussions where your context would be useful
+• Relevant team discussions
+• Questions that aren't blocking
 
-⬇️ LOW (0-49): Can skip/archive
-• Off-topic casual chatter or social conversations
-• Automated notifications and bot messages
-• Threads you're not involved in
-• Topics outside your scope
-• Resolved discussions
+⬇️ LOW (0-49):
+• Casual chat, social conversations
+• Off-topic discussions
+• Jokes, emoji reactions, "thanks"
+• Coffee/lunch/watercooler talk
 
-CATEGORIES:
-- "needs_response": Requires direct action/response from you (score usually 80+)
-- "high_priority": Important to read soon (score 70-89)
-- "fyi": Useful context, read when available (score 50-69)
-- "low_priority": Can skip or archive (score 0-49)
-
-USER CONTEXT (prioritize these):
-- Key people: {', '.join(key_people) if key_people else 'Not specified'}
-- Key topics/projects: {', '.join(key_keywords) if key_keywords else 'Not specified'}
-- Key channels: {', '.join(key_channels) if key_channels else 'Not specified'}
-
-MESSAGES TO ANALYZE:
+MESSAGES:
 {messages_text}
 
-Return JSON with this exact format:
+Return JSON:
 {{
   "priorities": [
-    {{
-      "message_number": 1,
-      "score": 95,
-      "reason": "Direct question with deadline from key stakeholder",
-      "category": "needs_response"
-    }},
-    {{
-      "message_number": 2,
-      "score": 65,
-      "reason": "Project update on key initiative",
-      "category": "fyi"
-    }}
+    {{"message_number": 1, "score": 95, "reason": "Production outage", "category": "needs_response"}},
+    {{"message_number": 2, "score": 25, "reason": "Casual chat", "category": "low_priority"}}
   ]
 }}
 
-IMPORTANT: Return a priority object for every message number from 1 to {message_count}.
+Return exactly {message_count} priorities.
 """
         return prompt
     
@@ -418,6 +424,141 @@ IMPORTANT: Return a priority object for every message number from 1 to {message_
             })
         
         return result
+    
+    def _apply_multipliers(self, messages: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
+        """
+        Apply deterministic multipliers to LLM base scores.
+        
+        Uses diminishing returns formula so scores approach but never exceed 100.
+        
+        Multipliers applied in order:
+        1. Muted channel (0.5x) - reduces noise first
+        2. Priority channel (1.5x) - boosts important channels
+        3. Direct @mention (2.0x) - someone explicitly asked for you
+        4. VIP person (2.0x) - VIP has final say
+        
+        Args:
+            messages: Messages with LLM base scores
+            
+        Returns:
+            Messages with adjusted scores and updated reasons
+        """
+        adjusted = []
+        
+        # Get your user ID for mention detection (try multiple env vars)
+        import os
+        your_user_id = (
+            os.getenv('YOUR_USER_ID_PERSONAL') or 
+            os.getenv('YOUR_USER_ID') or 
+            os.getenv('SLACK_ALERT_USER_ID') or 
+            ''
+        )
+        
+        for msg in messages:
+            base_score = msg['priority_score']
+            score = base_score
+            adjustments = []
+            
+            user_name = msg.get('user_name', '').lower().strip()
+            channel_name = msg.get('channel_name', '').lower().strip()
+            text = msg.get('text', '')
+            
+            # Check if you're directly mentioned
+            is_mentioned = your_user_id and f'<@{your_user_id}>' in text
+            
+            # 1. Apply muted channel penalty (BUT skip if you're @mentioned - that's important!)
+            if channel_name in self.muted_channels:
+                if is_mentioned:
+                    # Skip muted penalty - someone explicitly asked for you
+                    adjustments.append("muted channel skipped (@mention override)")
+                else:
+                    score = self._apply_diminishing_multiplier(score, MUTED_CHANNEL_MULTIPLIER)
+                    adjustments.append(f"muted channel ×{MUTED_CHANNEL_MULTIPLIER}")
+            
+            # 2. Apply priority channel boost
+            elif channel_name in self.priority_channels:
+                score = self._apply_diminishing_multiplier(score, PRIORITY_CHANNEL_MULTIPLIER)
+                adjustments.append(f"priority channel ×{PRIORITY_CHANNEL_MULTIPLIER}")
+            
+            # 3. Apply direct @mention boost (if you're mentioned)
+            if is_mentioned:
+                score = self._apply_diminishing_multiplier(score, MENTION_MULTIPLIER)
+                adjustments.append(f"@mention ×{MENTION_MULTIPLIER}")
+            
+            # 4. Apply VIP boost last (highest precedence)
+            if user_name in self.vip_people:
+                score = self._apply_diminishing_multiplier(score, VIP_MULTIPLIER)
+                adjustments.append(f"VIP ×{VIP_MULTIPLIER}")
+            
+            # Round to integer
+            final_score = round(score)
+            
+            # Update reason if adjustments were made
+            reason = msg['priority_reason']
+            if adjustments:
+                adjustment_str = ", ".join(adjustments)
+                reason = f"{reason} [Adjusted: {adjustment_str}, base={base_score}→{final_score}]"
+                logger.debug(f"   📊 {user_name} in #{channel_name}: {base_score} → {final_score} ({adjustment_str})")
+            
+            # Update category based on final score
+            category = self._score_to_category(final_score)
+            
+            adjusted.append({
+                **msg,
+                "priority_score": final_score,
+                "priority_reason": reason,
+                "category": category
+            })
+        
+        return adjusted
+    
+    def _apply_diminishing_multiplier(self, score: float, multiplier: float) -> float:
+        """
+        Apply a multiplier with diminishing returns as score approaches 100.
+        
+        Formula for boost (multiplier > 1):
+            effective_boost = (multiplier - 1) * score * (headroom / 100)
+            new_score = score + effective_boost
+        
+        For penalty (multiplier < 1):
+            Simply multiply (penalties don't need diminishing returns)
+        
+        Examples with VIP 2.0x:
+            score=50: 50 + 1.0*50*(50/100) = 50 + 25 = 75
+            score=70: 70 + 1.0*70*(30/100) = 70 + 21 = 91
+            score=90: 90 + 1.0*90*(10/100) = 90 + 9 = 99
+        
+        Args:
+            score: Current score (0-100)
+            multiplier: Multiplier to apply
+            
+        Returns:
+            Adjusted score (naturally capped at 100)
+        """
+        if multiplier == 1.0:
+            return score
+        
+        if multiplier < 1.0:
+            # Penalty: just multiply directly
+            return score * multiplier
+        
+        # Boost with diminishing returns
+        boost_factor = multiplier - 1.0  # 2.0 → 1.0 (100% boost attempt)
+        headroom = 100 - score  # How much room to grow
+        effective_boost = boost_factor * score * (headroom / 100)
+        
+        return score + effective_boost
+    
+    def _score_to_category(self, score: int) -> str:
+        """Convert score to category."""
+        if score >= 80:
+            return "needs_response"
+        elif score >= 70:
+            return "high_priority"
+        elif score >= 50:
+            return "fyi"
+        else:
+            return "low_priority"
     
     def _message_obj_to_dict(self, message_obj) -> Dict[str, Any]:
         """

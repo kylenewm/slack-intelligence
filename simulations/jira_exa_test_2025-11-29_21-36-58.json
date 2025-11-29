@@ -1,0 +1,24 @@
+{
+  "timestamp": "2025-11-29_21-36-58",
+  "message": {
+    "text": "[SIM] <@U09NR3RQZQU> Blocked: CI pipeline failing on main. Cant merge my PR until this is fixed. Been stuck for 2 hours.",
+    "user": "Coworker Bot",
+    "channel": "engineering",
+    "priority_score": 100
+  },
+  "research": {
+    "type": "code_bug",
+    "ticket_type": "bug",
+    "research_time_seconds": 3.236732,
+    "sources_count": 0
+  },
+  "quality": {
+    "source_evaluation": null,
+    "summary_evaluation": null
+  },
+  "jira_ticket": {
+    "key": "SCRUM-16",
+    "url": "https://kylenewman1214-1763824468248.atlassian.net/browse/SCRUM-16",
+    "issue_type": "Bug"
+  }
+}

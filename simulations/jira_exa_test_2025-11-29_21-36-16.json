@@ -1,0 +1,24 @@
+{
+  "timestamp": "2025-11-29_21-36-16",
+  "message": {
+    "text": "[SIM] PRODUCTION DOWN - API gateway 502 across all regions!",
+    "user": "Alex Rivera",
+    "channel": "engineering",
+    "priority_score": 100
+  },
+  "research": {
+    "type": "code_bug",
+    "ticket_type": "bug",
+    "research_time_seconds": 3.398346,
+    "sources_count": 0
+  },
+  "quality": {
+    "source_evaluation": null,
+    "summary_evaluation": null
+  },
+  "jira_ticket": {
+    "key": null,
+    "url": null,
+    "issue_type": "Bug"
+  }
+}

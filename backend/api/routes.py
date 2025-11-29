@@ -2,7 +2,7 @@
 FastAPI routes for Slack Intelligence API.
 """
 
-from fastapi import APIRouter, HTTPException, Query
+from fastapi import APIRouter, HTTPException, Query, Form
 from typing import List, Optional
 
 from .schemas import (
@@ -348,11 +348,11 @@ async def get_preferences(user_id: str = "default"):
 
 @router.post("/preferences")
 async def save_preferences(
-    user_id: str = "default",
-    key_people: Optional[str] = None,
-    key_channels: Optional[str] = None,
-    key_keywords: Optional[str] = None,
-    mute_channels: Optional[str] = None
+    user_id: str = Form("default"),
+    key_people: Optional[str] = Form(None),
+    key_channels: Optional[str] = Form(None),
+    key_keywords: Optional[str] = Form(None),
+    mute_channels: Optional[str] = Form(None)
 ):
     """
     Save user preferences for priority scoring.

@@ -1,0 +1,48 @@
+{
+  "timestamp": "2025-11-29_21-37-30",
+  "message": {
+    "text": "We need to decide on a vector database for the new 'Similar Ticket' feature. Should we stick with pgvector since we're already on Postgres, or move to Pinecone for better scaling? Need a decision by Friday.",
+    "user": "Alex Architect",
+    "channel": "architecture",
+    "priority_score": 75
+  },
+  "research": {
+    "type": "exa_research",
+    "ticket_type": "product_decision",
+    "research_time_seconds": 19.406971,
+    "sources_count": 5
+  },
+  "quality": {
+    "source_evaluation": {
+      "score": 90,
+      "grade": "A",
+      "issues": [],
+      "strengths": [
+        "Good source quantity (5 sources)",
+        "Diverse sources (5 different domains)",
+        "Detailed source content"
+      ],
+      "source_count": 5,
+      "domain_diversity": 5,
+      "avg_content_length": 2000
+    },
+    "summary_evaluation": {
+      "score": 80,
+      "grade": "B",
+      "issues": [],
+      "strengths": [
+        "Comprehensive summary (2968 chars)",
+        "Well-structured with sections",
+        "Includes actionable recommendations"
+      ],
+      "length": 2968,
+      "cited_sources": 2,
+      "technical_terms": 3
+    }
+  },
+  "jira_ticket": {
+    "key": "SCRUM-17",
+    "url": "https://kylenewman1214-1763824468248.atlassian.net/browse/SCRUM-17",
+    "issue_type": "Task"
+  }
+}

@@ -6,47 +6,53 @@
       "style": "product questions, decisions needed, feature specs",
       "is_user": true,
       "slack_user_id": null,
+      "bot_token_env": null,
       "message_types": ["decision_needed", "feature_question", "status_update", "blocker"]
     },
     {
-      "name": "Jordan",
+      "name": "Sarah Chen",
       "role": "CTO",
-      "style": "strategic decisions, company priorities, technical direction, approvals",
+      "style": "strategic decisions, company priorities, technical direction, executive escalations",
       "is_vip": true,
       "slack_user_id": null,
+      "bot_token_env": "BOT_SARAH_TOKEN",
       "message_types": ["strategic", "approval_needed", "escalation", "technical_direction"]
     },
     {
-      "name": "Marcus",
-      "role": "Engineer",
-      "style": "bug reports, technical questions, code reviews, implementation details",
-      "is_vip": false,
-      "slack_user_id": null,
-      "message_types": ["bug_report", "technical_question", "pr_review", "implementation"]
-    },
-    {
-      "name": "Lisa",
+      "name": "Jordan Patel",
       "role": "Engineering Manager",
-      "style": "sprint updates, escalations, resource asks, team coordination",
+      "style": "sprint updates, task assignments, 1:1s, team coordination, resource asks",
       "is_vip": true,
       "slack_user_id": null,
-      "message_types": ["sprint_update", "escalation", "resource_request", "team_update"]
+      "bot_token_env": "BOT_JORDAN_TOKEN",
+      "message_types": ["sprint_update", "task_assignment", "escalation", "resource_request", "team_update"]
     },
     {
-      "name": "Dave",
-      "role": "Coworker",
-      "style": "casual chat, off-topic, social, watercooler talk",
-      "is_noise": true,
+      "name": "Marcus Johnson",
+      "role": "Senior Engineer",
+      "style": "bug reports, technical questions, code reviews, implementation details, architecture discussions",
+      "is_vip": false,
       "slack_user_id": null,
-      "message_types": ["casual", "social", "off_topic", "meme"]
+      "bot_token_env": "BOT_MARCUS_TOKEN",
+      "message_types": ["bug_report", "technical_question", "pr_review", "implementation", "architecture"]
     },
     {
-      "name": "AlertBot",
-      "role": "Bot",
-      "style": "deploy notifications, monitoring alerts, CI/CD status, automated reports",
+      "name": "Alex Rivera",
+      "role": "DevOps Engineer",
+      "style": "deployment updates, infrastructure issues, monitoring alerts, CI/CD status",
+      "is_vip": false,
+      "slack_user_id": null,
+      "bot_token_env": "BOT_ALEX_TOKEN",
+      "message_types": ["deploy_update", "infrastructure", "monitoring", "ci_cd"]
+    },
+    {
+      "name": "Metrics",
+      "role": "Monitoring Bot",
+      "style": "system alerts, performance metrics, error notifications, automated reports",
       "is_bot": true,
       "slack_user_id": null,
-      "message_types": ["deploy_alert", "monitoring", "ci_cd", "metrics"]
+      "bot_token_env": "BOT_METRICS_TOKEN",
+      "message_types": ["alert", "monitoring", "metrics", "error_notification"]
     }
   ]
 }

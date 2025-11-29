@@ -2,42 +2,36 @@
   "channels": {
     "priority": [
       {
-        "name": "engineering-alerts",
-        "id": null,
-        "score_modifier": 15,
-        "description": "Critical engineering notifications"
-      },
-      {
         "name": "incidents",
-        "id": null,
+        "env_var": "CHANNEL_INCIDENTS",
         "score_modifier": 20,
         "description": "Production incidents and outages"
+      },
+      {
+        "name": "engineering",
+        "env_var": "CHANNEL_ENGINEERING",
+        "score_modifier": 10,
+        "description": "Engineering team discussions"
       }
     ],
     "normal": [
       {
         "name": "general",
-        "id": null,
+        "env_var": "CHANNEL_GENERAL",
         "score_modifier": 0,
         "description": "General team discussion"
       },
       {
         "name": "product",
-        "id": null,
+        "env_var": "CHANNEL_PRODUCT",
         "score_modifier": 0,
         "description": "Product team discussions"
       }
     ],
     "muted": [
       {
-        "name": "random",
-        "id": null,
-        "score_modifier": -20,
-        "description": "Random off-topic chat"
-      },
-      {
         "name": "watercooler",
-        "id": null,
+        "env_var": "CHANNEL_WATERCOOLER",
         "score_modifier": -20,
         "description": "Social and casual conversation"
       }

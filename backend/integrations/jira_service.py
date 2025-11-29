@@ -12,6 +12,158 @@ from ..config import settings
 logger = logging.getLogger(__name__)
 
 
+def markdown_to_adf(markdown_text: str) -> List[Dict[str, Any]]:
+    """
+    Convert markdown text to Atlassian Document Format (ADF) content blocks.
+    
+    Handles:
+    - ## Headers → heading blocks
+    - **bold** → strong marks
+    - `code` → code marks
+    - - bullets → bulletList
+    - [text](url) → links
+    - Plain paragraphs
+    """
+    import re
+    
+    content = []
+    lines = markdown_text.strip().split('\n')
+    current_list_items = []
+    
+    def flush_list():
+        """Add accumulated list items as a bulletList"""
+        nonlocal current_list_items
+        if current_list_items:
+            content.append({
+                "type": "bulletList",
+                "content": current_list_items
+            })
+            current_list_items = []
+    
+    def parse_inline(text: str) -> List[Dict[str, Any]]:
+        """Parse inline formatting (bold, code, links) into ADF marks"""
+        result = []
+        
+        # Pattern for **bold**, `code`, and [text](url)
+        pattern = r'(\*\*([^*]+)\*\*)|(`([^`]+)`)|(\[([^\]]+)\]\(([^)]+)\))'
+        
+        last_end = 0
+        for match in re.finditer(pattern, text):
+            # Add plain text before this match
+            if match.start() > last_end:
+                plain = text[last_end:match.start()]
+                if plain:
+                    result.append({"type": "text", "text": plain})
+            
+            if match.group(2):  # **bold**
+                result.append({
+                    "type": "text",
+                    "text": match.group(2),
+                    "marks": [{"type": "strong"}]
+                })
+            elif match.group(4):  # `code`
+                result.append({
+                    "type": "text",
+                    "text": match.group(4),
+                    "marks": [{"type": "code"}]
+                })
+            elif match.group(6):  # [text](url)
+                result.append({
+                    "type": "text",
+                    "text": match.group(6),
+                    "marks": [{"type": "link", "attrs": {"href": match.group(7)}}]
+                })
+            
+            last_end = match.end()
+        
+        # Add remaining plain text
+        if last_end < len(text):
+            remaining = text[last_end:]
+            if remaining:
+                result.append({"type": "text", "text": remaining})
+        
+        # If no formatting found, return simple text
+        if not result and text:
+            result = [{"type": "text", "text": text}]
+        
+        return result
+    
+    for line in lines:
+        line = line.strip()
+        
+        if not line:
+            flush_list()
+            continue
+        
+        # ## Header
+        if line.startswith('## '):
+            flush_list()
+            header_text = line[3:].strip()
+            # Remove emoji if present at start
+            content.append({
+                "type": "heading",
+                "attrs": {"level": 2},
+                "content": [{"type": "text", "text": header_text}]
+            })
+        
+        # ### Subheader
+        elif line.startswith('### '):
+            flush_list()
+            header_text = line[4:].strip()
+            content.append({
+                "type": "heading",
+                "attrs": {"level": 3},
+                "content": [{"type": "text", "text": header_text}]
+            })
+        
+        # --- Horizontal rule
+        elif line == '---':
+            flush_list()
+            content.append({"type": "rule"})
+        
+        # - Bullet point
+        elif line.startswith('- ') or line.startswith('* '):
+            bullet_text = line[2:].strip()
+            current_list_items.append({
+                "type": "listItem",
+                "content": [{
+                    "type": "paragraph",
+                    "content": parse_inline(bullet_text)
+                }]
+            })
+        
+        # Numbered list (1. 2. etc)
+        elif re.match(r'^\d+\.\s', line):
+            flush_list()
+            item_text = re.sub(r'^\d+\.\s*', '', line)
+            content.append({
+                "type": "paragraph",
+                "content": parse_inline(item_text)
+            })
+        
+        # Regular paragraph
+        else:
+            flush_list()
+            if line.startswith('*') and line.endswith('*') and not line.startswith('**'):
+                # Italic text (entire line)
+                content.append({
+                    "type": "paragraph",
+                    "content": [{
+                        "type": "text",
+                        "text": line.strip('*'),
+                        "marks": [{"type": "em"}]
+                    }]
+                })
+            else:
+                content.append({
+                    "type": "paragraph",
+                    "content": parse_inline(line)
+                })
+    
+    flush_list()
+    return content
+
+
 class JiraService:
     """Jira API client for ticket management"""
     
@@ -227,20 +379,19 @@ class JiraService:
                 {"type": "rule"}
             ])
         
-        # Add research summary if present
+        # Add research summary if present (convert markdown to ADF)
         if research_summary:
-            content.extend([
-                {
-                    "type": "heading",
-                    "attrs": {"level": 2},
-                    "content": [{"type": "text", "text": "🔍 Research Summary"}]
-                },
-                {
-                    "type": "paragraph",
-                    "content": [{"type": "text", "text": research_summary[:3000]}]  # Limit length
-                },
-                {"type": "rule"}
-            ])
+            content.append({
+                "type": "heading",
+                "attrs": {"level": 2},
+                "content": [{"type": "text", "text": "🔍 Research & Recommendation"}]
+            })
+            
+            # Convert markdown research to proper ADF formatting
+            research_adf = markdown_to_adf(research_summary[:4000])
+            content.extend(research_adf)
+            
+            content.append({"type": "rule"})
         
         # Add next steps
         content.extend([
@@ -261,6 +412,176 @@ class JiraService:
             "content": content
         }
     
+    def _format_bug_analysis_description(
+        self,
+        message: Dict[str, Any],
+        code_analysis: Dict[str, Any],
+        context_enrichment: Optional[Dict[str, Any]] = None
+    ) -> Dict[str, Any]:
+        """
+        Format bug analysis specifically for Jira using ADF.
+        Provides structured output with affected files, past issues, and debugging steps.
+        """
+        content = [
+            # Header
+            {
+                "type": "heading",
+                "attrs": {"level": 2},
+                "content": [{"type": "text", "text": "Original Slack Message"}]
+            },
+            {
+                "type": "paragraph",
+                "content": [
+                    {"type": "text", "text": "From: ", "marks": [{"type": "strong"}]},
+                    {"type": "text", "text": f"{message.get('user_name', 'Unknown')} in #{message.get('channel_name', 'unknown')}"}
+                ]
+            },
+            {
+                "type": "paragraph",
+                "content": [
+                    {"type": "text", "text": "Priority: ", "marks": [{"type": "strong"}]},
+                    {"type": "text", "text": f"{message.get('priority_score', 0)}/100"}
+                ]
+            },
+            {
+                "type": "paragraph",
+                "content": [{"type": "text", "text": message.get('text', 'No message text')}]
+            },
+            {"type": "rule"}
+        ]
+        
+        # Detected Patterns
+        patterns = code_analysis.get("patterns", {})
+        if patterns.get("exception_types") or patterns.get("status_codes"):
+            content.append({
+                "type": "heading",
+                "attrs": {"level": 2},
+                "content": [{"type": "text", "text": "🔍 Detected Issues"}]
+            })
+            
+            pattern_text = []
+            if patterns.get("exception_types"):
+                pattern_text.append(f"Exceptions: {', '.join(patterns['exception_types'])}")
+            if patterns.get("status_codes"):
+                pattern_text.append(f"HTTP Errors: {', '.join(patterns['status_codes'])}")
+            if patterns.get("file_mentions"):
+                pattern_text.append(f"Files mentioned: {', '.join(patterns['file_mentions'])}")
+            
+            content.append({
+                "type": "paragraph",
+                "content": [{"type": "text", "text": " | ".join(pattern_text)}]
+            })
+            content.append({"type": "rule"})
+        
+        # Affected Files from Codebase Search
+        codebase_matches = code_analysis.get("codebase_matches", [])
+        if codebase_matches:
+            content.append({
+                "type": "heading",
+                "attrs": {"level": 2},
+                "content": [{"type": "text", "text": "📁 Affected Files"}]
+            })
+            
+            for match in codebase_matches[:5]:
+                file_text = f"{match['file']}"
+                if match.get('line'):
+                    file_text += f" (line {match['line']})"
+                
+                content.append({
+                    "type": "paragraph",
+                    "content": [
+                        {"type": "text", "text": "• ", "marks": [{"type": "strong"}]},
+                        {"type": "text", "text": file_text, "marks": [{"type": "code"}]}
+                    ]
+                })
+                
+                if match.get('snippet'):
+                    content.append({
+                        "type": "codeBlock",
+                        "attrs": {"language": "python"},
+                        "content": [{"type": "text", "text": match['snippet'][:300]}]
+                    })
+            
+            content.append({"type": "rule"})
+        
+        # Past Similar Issues from Institutional Memory
+        memory_matches = code_analysis.get("memory_matches", [])
+        if memory_matches:
+            content.append({
+                "type": "heading",
+                "attrs": {"level": 2},
+                "content": [{"type": "text", "text": "🧠 Related Past Issues"}]
+            })
+            
+            for match in memory_matches[:3]:
+                # Issue title
+                content.append({
+                    "type": "paragraph",
+                    "content": [
+                        {"type": "text", "text": f"Issue: ", "marks": [{"type": "strong"}]},
+                        {"type": "text", "text": match.get('issue', 'Unknown')},
+                        {"type": "text", "text": f" (relevance: {match.get('relevance', 0):.0%})"}
+                    ]
+                })
+                
+                # Solution
+                if match.get('solution'):
+                    solution = match['solution'][:400] + "..." if len(match['solution']) > 400 else match['solution']
+                    content.append({
+                        "type": "paragraph",
+                        "content": [
+                            {"type": "text", "text": "Solution: ", "marks": [{"type": "strong"}]},
+                            {"type": "text", "text": solution}
+                        ]
+                    })
+            
+            content.append({"type": "rule"})
+        
+        # Debugging Steps
+        debugging_steps = code_analysis.get("debugging_steps", [])
+        if debugging_steps:
+            content.append({
+                "type": "heading",
+                "attrs": {"level": 2},
+                "content": [{"type": "text", "text": "🔧 Recommended Debugging Steps"}]
+            })
+            
+            # Create numbered list
+            list_items = []
+            for step in debugging_steps[:8]:
+                list_items.append({
+                    "type": "listItem",
+                    "content": [
+                        {
+                            "type": "paragraph",
+                            "content": [{"type": "text", "text": step}]
+                        }
+                    ]
+                })
+            
+            content.append({
+                "type": "orderedList",
+                "content": list_items
+            })
+        
+        # Summary
+        summary_text = code_analysis.get("summary", "")
+        if summary_text:
+            content.append({"type": "rule"})
+            content.append({
+                "type": "paragraph",
+                "content": [
+                    {"type": "text", "text": "Summary: ", "marks": [{"type": "strong"}]},
+                    {"type": "text", "text": summary_text}
+                ]
+            })
+        
+        return {
+            "version": 1,
+            "type": "doc",
+            "content": content
+        }
+    
     async def create_ticket(
         self,
         message: Dict[str, Any],
@@ -271,7 +592,8 @@ class JiraService:
         assignee: Optional[str] = None,
         labels: Optional[list] = None,
         research_summary: Optional[str] = None,
-        ticket_type: Optional[str] = None
+        ticket_type: Optional[str] = None,
+        code_analysis: Optional[Dict[str, Any]] = None
     ) -> Dict[str, Any]:
         """
         Create a Jira ticket from a Slack message.
@@ -286,6 +608,7 @@ class JiraService:
             labels: List of labels (optional)
             research_summary: Exa research summary (optional)
             ticket_type: Detected ticket type (optional)
+            code_analysis: Code bug analysis results (optional, for bugs)
             
         Returns:
             Dict with jira_key, jira_url, success status
@@ -321,6 +644,13 @@ class JiraService:
             elif description and isinstance(description, dict):
                 # Already in ADF format
                 ticket_description = description
+            elif code_analysis:
+                # Use bug analysis formatter for code bugs
+                ticket_description = self._format_bug_analysis_description(
+                    message,
+                    code_analysis,
+                    context_enrichment
+                )
             else:
                 # Use formatted description with message + research
                 ticket_description = self._format_description(

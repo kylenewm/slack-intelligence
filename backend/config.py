@@ -17,9 +17,9 @@ class Settings:
     # Base Directory
     BASE_DIR: str = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
     
-    # Slack API Configuration
-    SLACK_BOT_TOKEN: str = os.getenv("SLACK_BOT_TOKEN", "")  # Bot User OAuth Token
-    SLACK_USER_TOKEN: str = os.getenv("SLACK_USER_TOKEN", "")  # User OAuth Token (for search)
+    # Slack API Configuration (try personal tokens first, then default)
+    SLACK_BOT_TOKEN: str = os.getenv("SLACK_BOT_TOKEN_PERSONAL") or os.getenv("SLACK_BOT_TOKEN", "")
+    SLACK_USER_TOKEN: str = os.getenv("SLACK_USER_TOKEN_PERSONAL") or os.getenv("SLACK_USER_TOKEN", "")
     SLACK_SIGNING_SECRET: str = os.getenv("SLACK_SIGNING_SECRET", "")
     SLACK_WORKSPACE_ID: str = os.getenv("SLACK_WORKSPACE_ID", "")
     

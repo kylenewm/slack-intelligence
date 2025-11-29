@@ -145,14 +145,37 @@ class IntegrationTester:
             console.print("[cyan]Testing Jira connection...[/cyan]")
             jira_service = JiraService()
             
-            # Test connection by getting project info
-            project = jira_service.jira.project(settings.JIRA_PROJECT_KEY)
+            if not jira_service.enabled:
+                self.results["Jira API"] = {
+                    "status": "❌ FAIL",
+                    "detail": "Missing credentials",
+                    "error": "JIRA_API_KEY, JIRA_EMAIL, JIRA_DOMAIN, or JIRA_PROJECT_KEY not set"
+                }
+                return
             
-            self.results["Jira API"] = {
-                "status": "✅ PASS",
-                "detail": f"Connected to project: {project.name}",
-                "error": None
-            }
+            # Test connection by making a simple API call
+            import httpx
+            async with httpx.AsyncClient(timeout=10.0) as client:
+                response = await client.get(
+                    f"{jira_service.base_url}/rest/api/3/myself",
+                    headers={
+                        "Authorization": jira_service.auth_header,
+                        "Accept": "application/json"
+                    }
+                )
+                if response.status_code == 200:
+                    user_info = response.json()
+                    self.results["Jira API"] = {
+                        "status": "✅ PASS",
+                        "detail": f"Connected as {user_info.get('displayName', 'user')} to {settings.JIRA_PROJECT_KEY}",
+                        "error": None
+                    }
+                else:
+                    self.results["Jira API"] = {
+                        "status": "❌ FAIL",
+                        "detail": f"API returned {response.status_code}",
+                        "error": response.text[:100]
+                    }
             
         except Exception as e:
             self.results["Jira API"] = {
