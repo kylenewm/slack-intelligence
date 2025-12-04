@@ -1,5 +1,5 @@
 # Response Style
-- Be concise and direct
+- Be concise and direct without sacrificing thoroughness
 - Don't overcomplicate things
 - If unsure, ask for clarification instead of guessing
 
@@ -11,9 +11,7 @@ Building a Slack automation tool that:
 - Auto-researches tickets and adds context
 - Manages Notion to-do lists with Slack integration
 
-**Current Phase:** Demo/interview showcase for AI Product Manager role
-- Focus on core functionality over production hardening
-- Skip extensive logging and edge case handling for now
+**Current Phase:** Production for launching for 50+ users
 - Design with future scalability in mind
 
 # Preferences
@@ -21,3 +19,4 @@ Building a Slack automation tool that:
 - Keep tests simple and focused
 - Prioritize debuggability and maintainability over aesthetics
 - No unnecessary complexity
+

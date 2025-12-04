@@ -127,6 +127,14 @@ st.markdown("""
         color: #1e293b !important;
     }
     
+    /* Form selectbox (Type dropdown) - white text on dark background */
+    .main .stSelectbox div[data-baseweb="select"] * {
+        color: white !important;
+    }
+    .main .stSelectbox div[data-baseweb="select"] svg {
+        fill: white !important;
+    }
+    
     /* ============ SIDEBAR - WHITE TEXT ============ */
     [data-testid="stSidebar"] {
         background: linear-gradient(180deg, #0f172a 0%, #1e293b 100%);
@@ -203,13 +211,36 @@ def format_time_ago(timestamp_str):
         else:
             timestamp = timestamp_str
         
-        now = datetime.now(timestamp.tzinfo) if timestamp.tzinfo else datetime.now()
-        delta = now - timestamp
+        # Timestamps in DB are UTC naive. Convert to local for display.
+        # Add UTC timezone, then convert to local
+        from datetime import timezone
+        if timestamp.tzinfo is None:
+            # Assume UTC, make aware
+            timestamp_utc = timestamp.replace(tzinfo=timezone.utc)
+        else:
+            timestamp_utc = timestamp
         
-        if delta.days > 0: return f"{delta.days}d ago"
-        elif delta.seconds >= 3600: return f"{delta.seconds // 3600}h ago"
-        elif delta.seconds >= 60: return f"{delta.seconds // 60}m ago"
-        else: return "just now"
+        # Convert to local time for display comparison
+        timestamp_local = timestamp_utc.astimezone()  # Converts to system local time
+        now_local = datetime.now().astimezone()
+        
+        delta = now_local - timestamp_local
+        total_seconds = delta.total_seconds()
+        
+        if total_seconds < 0:
+            return "just now"
+        
+        hours = int(total_seconds // 3600)
+        minutes = int((total_seconds % 3600) // 60)
+        
+        if hours >= 24:
+            return f"{hours // 24}d ago"
+        elif hours >= 1:
+            return f"{hours}h ago"
+        elif minutes >= 1:
+            return f"{minutes}m ago"
+        else:
+            return "just now"
     except:
         return "unknown"
 
@@ -923,7 +954,7 @@ def render_inbox(view="all", limit=50, min_score=0, channel_filter="All Channels
             
             with st.form(key=f"jira_form_{msg['id']}"):
                 summary = st.text_input("Summary", value=f"Slack: {msg.get('text')[:80]}...")
-                issue_type = st.selectbox("Type", ["Bug", "Task", "Story", "Improvement"])
+                issue_type = st.selectbox("Type", ["Task", "Story", "Bug", "Improvement"])
                 st.info("💡 Exa research runs for comparisons, architecture decisions & best practices questions")
                 submitted = st.form_submit_button("🚀 Create Ticket", use_container_width=True)
             

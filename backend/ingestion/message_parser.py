@@ -57,11 +57,11 @@ class MessageParser:
         # Get channel name
         channel_name = await self._get_channel_name(channel_id)
         
-        # Parse timestamp
+        # Parse timestamp - ALWAYS use UTC
         try:
-            timestamp = datetime.fromtimestamp(float(message_id))
+            timestamp = datetime.utcfromtimestamp(float(message_id))
         except (ValueError, TypeError):
-            timestamp = datetime.now(timezone.utc)
+            timestamp = datetime.utcnow()
         
         # Extract thread info
         thread_ts = raw_message.get('thread_ts')

@@ -268,7 +268,8 @@ class CacheService:
         """
         db = SessionLocal()
         try:
-            since = datetime.now(timezone.utc).replace(tzinfo=None) - timedelta(hours=hours_ago)
+            # All timestamps should be UTC - filter uses UTC
+            since = datetime.utcnow() - timedelta(hours=hours_ago)
             
             query = db.query(SlackMessage).filter(
                 SlackMessage.category == category,
@@ -299,7 +300,8 @@ class CacheService:
         """Get messages within a score range"""
         db = SessionLocal()
         try:
-            since = datetime.now(timezone.utc).replace(tzinfo=None) - timedelta(hours=hours_ago)
+            # All timestamps should be UTC - filter uses UTC
+            since = datetime.utcnow() - timedelta(hours=hours_ago)
             
             messages = db.query(SlackMessage).filter(
                 SlackMessage.priority_score >= min_score,

@@ -157,7 +157,8 @@ class InboxService:
         db = SessionLocal()
         try:
             # Message counts by category (last 24h)
-            since = datetime.now(timezone.utc).replace(tzinfo=None) - timedelta(hours=24)
+            # All timestamps should be UTC
+            since = datetime.utcnow() - timedelta(hours=24)
             
             total_messages = db.query(SlackMessage).filter(
                 SlackMessage.timestamp >= since
