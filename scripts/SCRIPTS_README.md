@@ -56,7 +56,9 @@ python scripts/run_comprehensive_simulation.py
 | `test_end_to_end.py` | Full E2E workflow test |
 | `test_notion_integration.py` | Notion API connection test |
 | `test_jira.py` | Jira integration test |
-| `test_context_awareness.py` | Context Engine test |
+| `test_context_awareness.py` | Basic Context Engine test |
+| `test_context_engine.py` | **Comprehensive Context Engine test** - Full process visibility, edge cases |
+| `view_context_engine_results.py` | View detailed results from context engine tests |
 | `test_slack_events.py` | Slack Events API test |
 | `test_dependencies.py` | Dependency validation |
 | `test_production.sh` | Production deployment validation |
@@ -117,6 +119,12 @@ python scripts/simulation_runner.py
 
 # Test integrations
 python scripts/test_all_integrations.py
+
+# Test context engine (comprehensive)
+python scripts/test_context_engine.py
+
+# View context engine test results
+python scripts/view_context_engine_results.py simulations/context_engine_test_*.json
 
 # Check inbox
 python scripts/check_inbox.py

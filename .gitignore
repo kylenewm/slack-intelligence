@@ -1,4 +1,4 @@
-i# Environment variables
+# Environment variables
 .env
 .env.local
 .env.production
@@ -63,4 +63,5 @@ Thumbs.db
 
 # Simulation runs (may contain message data)
 simulations/runs/
-simulations/failures/
+simulations/failures/simulations/*.json
+simulations/.cursorrules

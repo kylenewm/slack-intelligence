@@ -225,6 +225,76 @@
   ],
   "edge_cases": [
     {
+      "id": "ai-search-comparison",
+      "title": "AI Search Tool Comparison",
+      "description": "Tests: Should trigger Exa research - comparing AI search APIs",
+      "channel": "engineering",
+      "messages": [
+        {
+          "persona": "Marcus Johnson",
+          "text": "Should we go with Tavily or Perplexity for AI search? Need to pick one for the new feature",
+          "delay": 1
+        }
+      ],
+      "expected_score_min": 55
+    },
+    {
+      "id": "gdpr-compliance-question",
+      "title": "GDPR Compliance Question",
+      "description": "Tests: Should trigger Exa research - legal/compliance question",
+      "channel": "product",
+      "messages": [
+        {
+          "persona": "Jordan Patel",
+          "text": "Legal is asking about GDPR again. What are the key requirements we need to check for user data handling?",
+          "delay": 1
+        }
+      ],
+      "expected_score_min": 60
+    },
+    {
+      "id": "mobile-strategy",
+      "title": "Mobile App Strategy",
+      "description": "Tests: Should trigger Exa research - product strategy question",
+      "channel": "product",
+      "messages": [
+        {
+          "persona": "Sarah Chen",
+          "text": "Users keep asking for a mobile app. Should we build native iOS/Android or just improve the PWA? What are other B2B SaaS companies doing?",
+          "delay": 1
+        }
+      ],
+      "expected_score_min": 65
+    },
+    {
+      "id": "pricing-tiers-research",
+      "title": "Pricing Tier Research",
+      "description": "Tests: Should trigger Exa research - business strategy",
+      "channel": "general",
+      "messages": [
+        {
+          "persona": "Jordan Patel",
+          "text": "Revisiting our pricing. How do other developer tools typically structure their pricing tiers? Usage-based vs seat-based?",
+          "delay": 1
+        }
+      ],
+      "expected_score_min": 55
+    },
+    {
+      "id": "cicd-best-practices",
+      "title": "CI/CD Best Practices",
+      "description": "Tests: Should trigger Exa research - devops question",
+      "channel": "engineering",
+      "messages": [
+        {
+          "persona": "Alex Rivera",
+          "text": "Want to improve our deploy pipeline. What's the recommended way to do canary deployments with GitHub Actions?",
+          "delay": 1
+        }
+      ],
+      "expected_score_min": 55
+    },
+    {
       "id": "urgent-keyword-test",
       "title": "Urgent Keyword Without VIP",
       "description": "Tests: Urgent language from non-VIP should still score high",

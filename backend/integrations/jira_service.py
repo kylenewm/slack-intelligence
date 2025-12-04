@@ -420,14 +420,38 @@ class JiraService:
     ) -> Dict[str, Any]:
         """
         Format bug analysis specifically for Jira using ADF.
-        Provides structured output with affected files, past issues, and debugging steps.
+        Shows PM summary at top for quick understanding, then engineer details.
         """
-        content = [
-            # Header
+        content = []
+        
+        # PM Summary at the top (high-level understanding)
+        pm_summary = code_analysis.get("pm_summary", code_analysis.get("summary", ""))
+        if pm_summary:
+            content.extend([
+                {
+                    "type": "heading",
+                    "attrs": {"level": 2},
+                    "content": [{"type": "text", "text": "📋 Summary"}]
+                },
+                {
+                    "type": "panel",
+                    "attrs": {"panelType": "info"},
+                    "content": [
+                        {
+                            "type": "paragraph",
+                            "content": [{"type": "text", "text": pm_summary}]
+                        }
+                    ]
+                },
+                {"type": "rule"}
+            ])
+        
+        # Original Slack Message
+        content.extend([
             {
                 "type": "heading",
                 "attrs": {"level": 2},
-                "content": [{"type": "text", "text": "Original Slack Message"}]
+                "content": [{"type": "text", "text": "💬 Original Report"}]
             },
             {
                 "type": "paragraph",
@@ -438,25 +462,21 @@ class JiraService:
             },
             {
                 "type": "paragraph",
-                "content": [
-                    {"type": "text", "text": "Priority: ", "marks": [{"type": "strong"}]},
-                    {"type": "text", "text": f"{message.get('priority_score', 0)}/100"}
-                ]
-            },
-            {
-                "type": "paragraph",
                 "content": [{"type": "text", "text": message.get('text', 'No message text')}]
             },
             {"type": "rule"}
-        ]
+        ])
+        
+        # Engineer Context Section
+        engineer_context = code_analysis.get("engineer_context", {})
+        patterns = engineer_context.get("patterns", code_analysis.get("patterns", {}))
         
         # Detected Patterns
-        patterns = code_analysis.get("patterns", {})
         if patterns.get("exception_types") or patterns.get("status_codes"):
             content.append({
                 "type": "heading",
                 "attrs": {"level": 2},
-                "content": [{"type": "text", "text": "🔍 Detected Issues"}]
+                "content": [{"type": "text", "text": "🔍 Technical Details"}]
             })
             
             pattern_text = []
@@ -464,117 +484,84 @@ class JiraService:
                 pattern_text.append(f"Exceptions: {', '.join(patterns['exception_types'])}")
             if patterns.get("status_codes"):
                 pattern_text.append(f"HTTP Errors: {', '.join(patterns['status_codes'])}")
-            if patterns.get("file_mentions"):
-                pattern_text.append(f"Files mentioned: {', '.join(patterns['file_mentions'])}")
+            if patterns.get("likely_cause"):
+                pattern_text.append(f"Likely cause: {patterns['likely_cause']}")
             
             content.append({
                 "type": "paragraph",
                 "content": [{"type": "text", "text": " | ".join(pattern_text)}]
             })
-            content.append({"type": "rule"})
         
-        # Affected Files from Codebase Search
-        codebase_matches = code_analysis.get("codebase_matches", [])
-        if codebase_matches:
+        # Affected Files
+        affected_files = engineer_context.get("affected_files", [])
+        codebase_matches = engineer_context.get("codebase_matches", code_analysis.get("codebase_matches", []))
+        
+        if affected_files or codebase_matches:
             content.append({
                 "type": "heading",
-                "attrs": {"level": 2},
+                "attrs": {"level": 3},
                 "content": [{"type": "text", "text": "📁 Affected Files"}]
             })
             
+            # Show unique files
+            shown_files = set()
             for match in codebase_matches[:5]:
-                file_text = f"{match['file']}"
-                if match.get('line'):
-                    file_text += f" (line {match['line']})"
-                
-                content.append({
-                    "type": "paragraph",
-                    "content": [
-                        {"type": "text", "text": "• ", "marks": [{"type": "strong"}]},
-                        {"type": "text", "text": file_text, "marks": [{"type": "code"}]}
-                    ]
-                })
-                
-                if match.get('snippet'):
-                    content.append({
-                        "type": "codeBlock",
-                        "attrs": {"language": "python"},
-                        "content": [{"type": "text", "text": match['snippet'][:300]}]
-                    })
-            
-            content.append({"type": "rule"})
-        
-        # Past Similar Issues from Institutional Memory
-        memory_matches = code_analysis.get("memory_matches", [])
-        if memory_matches:
-            content.append({
-                "type": "heading",
-                "attrs": {"level": 2},
-                "content": [{"type": "text", "text": "🧠 Related Past Issues"}]
-            })
-            
-            for match in memory_matches[:3]:
-                # Issue title
-                content.append({
-                    "type": "paragraph",
-                    "content": [
-                        {"type": "text", "text": f"Issue: ", "marks": [{"type": "strong"}]},
-                        {"type": "text", "text": match.get('issue', 'Unknown')},
-                        {"type": "text", "text": f" (relevance: {match.get('relevance', 0):.0%})"}
-                    ]
-                })
-                
-                # Solution
-                if match.get('solution'):
-                    solution = match['solution'][:400] + "..." if len(match['solution']) > 400 else match['solution']
+                file_path = match.get('file', '')
+                if file_path and file_path not in shown_files:
+                    shown_files.add(file_path)
+                    file_text = file_path
+                    if match.get('line'):
+                        file_text += f" (line {match['line']})"
+                    
                     content.append({
                         "type": "paragraph",
                         "content": [
-                            {"type": "text", "text": "Solution: ", "marks": [{"type": "strong"}]},
-                            {"type": "text", "text": solution}
+                            {"type": "text", "text": "• "},
+                            {"type": "text", "text": file_text, "marks": [{"type": "code"}]}
                         ]
                     })
             
             content.append({"type": "rule"})
         
-        # Debugging Steps
-        debugging_steps = code_analysis.get("debugging_steps", [])
-        if debugging_steps:
+        # Past Solutions (most valuable for engineers)
+        past_solutions = engineer_context.get("past_solutions", [])
+        memory_matches = code_analysis.get("memory_matches", [])
+        solutions_to_show = past_solutions if past_solutions else memory_matches
+        
+        if solutions_to_show:
             content.append({
                 "type": "heading",
                 "attrs": {"level": 2},
-                "content": [{"type": "text", "text": "🔧 Recommended Debugging Steps"}]
+                "content": [{"type": "text", "text": "🧠 Past Solutions"}]
             })
             
-            # Create numbered list
-            list_items = []
-            for step in debugging_steps[:8]:
-                list_items.append({
-                    "type": "listItem",
+            for match in solutions_to_show[:3]:
+                # Issue title with relevance
+                relevance = match.get('relevance', 0)
+                relevance_text = f" ({relevance:.0%} match)" if relevance else ""
+                
+                content.append({
+                    "type": "paragraph",
                     "content": [
-                        {
-                            "type": "paragraph",
-                            "content": [{"type": "text", "text": step}]
-                        }
+                        {"type": "text", "text": match.get('issue', 'Unknown'), "marks": [{"type": "strong"}]},
+                        {"type": "text", "text": relevance_text}
                     ]
                 })
-            
-            content.append({
-                "type": "orderedList",
-                "content": list_items
-            })
-        
-        # Summary
-        summary_text = code_analysis.get("summary", "")
-        if summary_text:
-            content.append({"type": "rule"})
-            content.append({
-                "type": "paragraph",
-                "content": [
-                    {"type": "text", "text": "Summary: ", "marks": [{"type": "strong"}]},
-                    {"type": "text", "text": summary_text}
-                ]
-            })
+                
+                # Solution in a panel for visibility
+                solution = match.get('solution', '')
+                if solution:
+                    solution_text = solution[:500] + "..." if len(solution) > 500 else solution
+                    content.append({
+                        "type": "panel",
+                        "attrs": {"panelType": "success"},
+                        "content": [
+                            {
+                                "type": "paragraph",
+                                "content": [{"type": "text", "text": solution_text}]
+                            }
+                        ]
+                    })
         
         return {
             "version": 1,
@@ -622,8 +609,8 @@ class JiraService:
             }
         
         try:
-            # Enrich context with thread history
-            context_enrichment = await self._enrich_context(message)
+            # Enrich context with thread history (make await self._enrich_context(message) to add back in)
+            context_enrichment = None
             
             # Build ticket data
             ticket_summary = summary or message.get('text', '')[:100]

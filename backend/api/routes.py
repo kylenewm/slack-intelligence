@@ -2,8 +2,11 @@
 FastAPI routes for Slack Intelligence API.
 """
 
+import logging
 from fastapi import APIRouter, HTTPException, Query, Form
 from typing import List, Optional
+
+logger = logging.getLogger(__name__)
 
 from .schemas import (
     SmartInboxResponse,
@@ -14,6 +17,7 @@ from .schemas import (
 )
 from ..services.inbox_service import InboxService
 from ..services.sync_service import SyncService
+from ..services.code_bug_analyzer import CodeBugAnalyzer
 from ..integrations.exa_service import ExaSearchService
 from ..integrations.jira_service import JiraService
 from ..integrations.notion_service import NotionSyncService
@@ -28,6 +32,7 @@ sync_service = SyncService()
 exa_service = ExaSearchService()
 jira_service = JiraService()
 cache_service = CacheService()
+bug_analyzer = CodeBugAnalyzer()
 
 
 @router.get("/health")
@@ -77,12 +82,12 @@ async def get_smart_inbox(
         else:
             messages = await inbox_service.get_all(hours_ago, limit)
         
-        from datetime import datetime
+        from datetime import datetime, timezone
         return {
             "view": view,
             "total": len(messages),
             "messages": messages,
-            "generated_at": datetime.utcnow()
+            "generated_at": datetime.now(timezone.utc)
         }
         
     except Exception as e:
@@ -230,6 +235,68 @@ async def research_with_exa(message_id: int):
         raise HTTPException(status_code=500, detail=str(e))
 
 
+@router.get("/integrations/bug-analysis/{message_id}")
+async def get_bug_analysis(message_id: int):
+    """
+    Get bug analysis for a Slack message.
+    Shows full pipeline: detection → patterns → codebase matches → memory matches → debugging steps.
+    
+    Args:
+        message_id: Database ID of the Slack message
+        
+    Returns:
+        Full bug analysis including patterns, matches, and debugging steps
+    """
+    try:
+        # Get message from database
+        message = cache_service.get_message_by_id(message_id)
+        if not message:
+            raise HTTPException(status_code=404, detail="Message not found")
+        
+        # Convert to dict for bug analyzer
+        message_dict = {
+            "text": message.text,
+            "channel_name": message.channel_name,
+            "user_name": message.user_name,
+            "priority_score": message.priority_score,
+            "message_id": message.message_id,
+            "channel_id": message.channel_id
+        }
+        
+        # First check if it's a bug
+        detection = await exa_service.detect_ticket_type(message_dict)
+        ticket_type = detection.get('ticket_type', 'general_task')
+        
+        if ticket_type not in ['bug', 'technical_error']:
+            return {
+                "message_id": message_id,
+                "is_bug": False,
+                "detection": detection,
+                "message": "This message is not classified as a bug. Use /integrations/exa/research for research."
+            }
+        
+        # Run bug analysis
+        code_analysis = await bug_analyzer.analyze(message_dict)
+        
+        # Format for Jira preview
+        jira_preview = jira_service._format_bug_analysis_description(
+            message_dict,
+            code_analysis,
+            None
+        )
+        
+        return {
+            "message_id": message_id,
+            "is_bug": True,
+            "detection": detection,
+            "code_analysis": code_analysis,
+            "jira_preview": jira_preview
+        }
+        
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
 @router.post("/integrations/jira/create")
 async def create_jira_ticket(
     message_id: int,
@@ -275,7 +342,36 @@ async def create_jira_ticket(
             "channel_id": message.channel_id
         }
         
-        # Create Jira ticket
+        # Auto-run bug analysis when creating Bug tickets
+        code_analysis = None
+        if issue_type == "Bug" or ticket_type in ['bug', 'technical_error']:
+            try:
+                code_analysis = await bug_analyzer.analyze(message_dict)
+                logger.info(f"🐛 Bug analysis completed for message {message_id}")
+            except Exception as e:
+                logger.warning(f"Bug analysis failed (continuing without): {e}")
+        
+        # Auto-run Exa research for non-bug tickets (if not already provided)
+        logger.info(f"🔬 Checking Exa research: code_analysis={code_analysis is not None}, research_summary={research_summary is not None}")
+        if not code_analysis and not research_summary:
+            try:
+                logger.info(f"🔬 Running detect_ticket_type...")
+                detection = await exa_service.detect_ticket_type(message_dict)
+                logger.info(f"🔬 Detection result: needs_research={detection.get('needs_research')}, type={detection.get('ticket_type')}")
+                if detection.get('needs_research'):
+                    logger.info(f"🔍 Auto-running Exa research for {detection.get('ticket_type')}")
+                    research_result = await exa_service.research_for_ticket(message_dict)
+                    research_summary = research_result.get('research_summary')
+                    logger.info(f"🔬 Research complete: {len(research_summary) if research_summary else 0} chars")
+                    ticket_type = ticket_type or detection.get('ticket_type')
+                else:
+                    logger.info(f"🔬 Skipping research: needs_research=False")
+            except Exception as e:
+                logger.warning(f"Exa research failed (continuing without): {e}")
+                import traceback
+                logger.warning(f"Traceback: {traceback.format_exc()}")
+        
+        # Create Jira ticket (with bug analysis or research if available)
         jira_result = await jira_service.create_ticket(
             message=message_dict,
             summary=summary,
@@ -285,7 +381,8 @@ async def create_jira_ticket(
             assignee=assignee,
             labels=labels,
             research_summary=research_summary,
-            ticket_type=ticket_type
+            ticket_type=ticket_type,
+            code_analysis=code_analysis
         )
         
         if not jira_result.get('success'):
@@ -377,6 +474,79 @@ async def save_preferences(
         
         result = cache_service.save_user_preferences(user_id, prefs)
         return {"status": "saved", "preferences": result}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.post("/messages/{message_id}/archive")
+async def archive_message(message_id: int):
+    """
+    Archive a message (mark as done).
+    Persists across sessions.
+    """
+    try:
+        result = cache_service.archive_message(message_id)
+        if result:
+            return {"status": "archived", "message_id": message_id}
+        else:
+            raise HTTPException(status_code=404, detail="Message not found")
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.post("/integrations/notion/create")
+async def create_notion_task(message_id: int):
+    """
+    Create a Notion task from a Slack message.
+    """
+    if not settings.NOTION_SYNC_ENABLED or not settings.NOTION_API_KEY:
+        raise HTTPException(status_code=400, detail="Notion not configured. Set NOTION_API_KEY and NOTION_SYNC_ENABLED=true")
+    
+    try:
+        # Get message from database
+        message = cache_service.get_message_by_id(message_id)
+        if not message:
+            raise HTTPException(status_code=404, detail="Message not found")
+        
+        # Convert to dict
+        message_dict = {
+            "text": message.text,
+            "channel_name": message.channel_name,
+            "user_name": message.user_name,
+            "priority_score": message.priority_score,
+            "message_id": message.message_id,
+            "timestamp": str(message.timestamp)
+        }
+        
+        # Initialize Notion service
+        notion_service = NotionSyncService(
+            api_key=settings.NOTION_API_KEY,
+            database_id=settings.NOTION_DATABASE_ID
+        )
+        
+        # Extract task from message
+        from ..integrations.notion_service import NotionTaskExtractor
+        task = NotionTaskExtractor.extract_task_from_message(message_dict)
+        
+        if not task:
+            raise HTTPException(status_code=400, detail="Could not extract task from message (priority too low?)")
+        
+        # Create in Notion
+        task_id = await notion_service.client.create_task(task)
+        
+        if task_id:
+            return {
+                "status": "created",
+                "notion_task_id": task_id,
+                "notion_url": f"https://notion.so/{task_id.replace('-', '')}"
+            }
+        else:
+            raise HTTPException(status_code=500, detail="Failed to create Notion task")
+            
+    except HTTPException:
+        raise
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 

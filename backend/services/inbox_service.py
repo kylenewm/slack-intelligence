@@ -4,7 +4,7 @@ Inbox service - provides smart inbox views.
 
 import logging
 from typing import List, Dict, Any
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 
 from ..config import settings
 from ..database.cache_service import CacheService
@@ -157,7 +157,7 @@ class InboxService:
         db = SessionLocal()
         try:
             # Message counts by category (last 24h)
-            since = datetime.utcnow() - timedelta(hours=24)
+            since = datetime.now(timezone.utc).replace(tzinfo=None) - timedelta(hours=24)
             
             total_messages = db.query(SlackMessage).filter(
                 SlackMessage.timestamp >= since
@@ -210,7 +210,7 @@ class InboxService:
                     "low_priority": low_priority
                 },
                 "latest_sync": sync_info,
-                "generated_at": datetime.utcnow().isoformat()
+                "generated_at": datetime.now(timezone.utc).isoformat()
             }
             
         finally:

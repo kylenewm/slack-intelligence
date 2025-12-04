@@ -4,7 +4,7 @@ Converts raw Slack JSON into our database format.
 """
 
 import logging
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import Dict, Any, Optional, List
 from slack_sdk import WebClient
 from slack_sdk.errors import SlackApiError
@@ -61,7 +61,7 @@ class MessageParser:
         try:
             timestamp = datetime.fromtimestamp(float(message_id))
         except (ValueError, TypeError):
-            timestamp = datetime.utcnow()
+            timestamp = datetime.now(timezone.utc)
         
         # Extract thread info
         thread_ts = raw_message.get('thread_ts')
@@ -99,7 +99,7 @@ class MessageParser:
             "has_files": has_files,
             "files": [self._parse_file(f) for f in files],
             "raw_data": raw_message,
-            "fetched_at": datetime.utcnow()
+            "fetched_at": datetime.now(timezone.utc)
         }
         
         return parsed

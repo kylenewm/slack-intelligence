@@ -36,8 +36,8 @@ LOCAL_PORT = int(os.getenv("API_PORT", "8000"))
 LOCAL_API = f"http://localhost:{LOCAL_PORT}"
 PROD_API = "https://slack-automation-production.up.railway.app"
 
-# Dynamic API Base
-API_BASE = PROD_API if st.session_state.env_mode == "Production" else LOCAL_API
+# Dynamic API Base - use .get() to avoid errors during import
+API_BASE = PROD_API if st.session_state.get('env_mode', 'Local') == "Production" else LOCAL_API
 
 # Custom CSS - FIXED VERSION
 st.markdown("""
@@ -167,11 +167,14 @@ def check_server():
     except:
         return False
 
-def get_inbox(view="all", hours_ago=24, limit=50):
-    """Fetch messages from API"""
+@st.cache_data(ttl=30)
+def get_inbox(view="all", hours_ago=24, limit=50, api_base=None):
+    """Fetch messages from API - cached for 30 seconds"""
+    # Use passed api_base or fall back to global (but passed one ensures cache invalidation)
+    base = api_base or API_BASE
     try:
         response = requests.get(
-            f"{API_BASE}/api/slack/inbox",
+            f"{base}/api/slack/inbox",
             params={"view": view, "hours_ago": hours_ago, "limit": limit},
             timeout=10
         )
@@ -308,8 +311,10 @@ def main():
             
             min_score = st.slider("Min Priority Score", 0, 100, 0, key="inbox_min_score")
             limit_filter = st.slider("Message Limit", 10, 100, 50, key="inbox_limit")
+            hours_ago = st.slider("Time Window (hours)", 1, 168, 72, key="inbox_hours_ago", 
+                                 help="Show messages from last N hours (168 = 7 days)")
             
-        render_inbox(view_filter, limit_filter, min_score, channel_filter)
+        render_inbox(view_filter, limit_filter, min_score, channel_filter, hours_ago)
 
     # Footer (Fixed at bottom)
     with st.sidebar:
@@ -633,7 +638,7 @@ def render_settings():
         except Exception as e:
             st.error(f"Connection failed: {e}")
 
-def render_inbox(view="all", limit=50, min_score=0, channel_filter="All Channels"):
+def render_inbox(view="all", limit=50, min_score=0, channel_filter="All Channels", hours_ago=72):
     # Page Header in lighter container
     col_title, col_refresh = st.columns([4, 1])
     with col_title:
@@ -652,7 +657,7 @@ def render_inbox(view="all", limit=50, min_score=0, channel_filter="All Channels
 
     # Fetch Data
     with st.spinner(f"Fetching from {st.session_state.env_mode}..."):
-        data = get_inbox(view, limit=limit)
+        data = get_inbox(view, hours_ago=hours_ago, limit=limit, api_base=API_BASE)
     
     if not data or not data.get('messages'):
         st.info("📭 Inbox is empty.")
@@ -738,95 +743,219 @@ def render_inbox(view="all", limit=50, min_score=0, channel_filter="All Channels
         </div>
         """, unsafe_allow_html=True)
         
-        # AI Analysis Section (cleaner, no nested container issues)
-        with st.container():
-            st.markdown(f"""
-            <div style="
-                background: #f8fafc;
-                border: 1px solid #e2e8f0;
-                border-radius: 8px;
-                padding: 16px;
-                margin-bottom: 24px;
-            ">
-                <div style="color: #475569; font-weight: 600; margin-bottom: 8px;">💡 AI Analysis</div>
-                <div style="color: #334155; line-height: 1.6;">{msg.get('priority_reason')}</div>
-            </div>
-            """, unsafe_allow_html=True)
-            
-            # Action Buttons
-            act1, act2, act3 = st.columns(3)
-            
-            if act1.button("🎫 Create Jira Ticket", key=f"jira_{msg['id']}", use_container_width=True):
-                st.session_state[f"show_jira_form_{msg['id']}"] = True
-                st.rerun()
-                
-            if act2.button("📝 Create Notion Task", key=f"notion_{msg['id']}", use_container_width=True):
-                st.toast("Creating Notion task...")
-                import time
-                time.sleep(1)
-                st.toast("✅ Notion Task Created!", icon="📝")
-                
-            if act3.button("✅ Mark as Done", key=f"done_{msg['id']}", use_container_width=True):
-                st.toast("Archiving message...")
+        # AI Analysis Section
+        st.markdown(f"""
+        <div style="
+            background: #f8fafc;
+            border: 1px solid #e2e8f0;
+            border-radius: 8px;
+            padding: 16px;
+            margin-bottom: 16px;
+        ">
+            <div style="color: #475569; font-weight: 600; margin-bottom: 8px;">💡 AI Analysis</div>
+            <div style="color: #334155; line-height: 1.6;">{msg.get('priority_reason')}</div>
+        </div>
+        """, unsafe_allow_html=True)
+        
+        # Bug Analysis Button
+        if st.button("🔍 Analyze Bug", key=f"analyze_{msg['id']}", use_container_width=False):
+            st.session_state[f"show_bug_analysis_{msg['id']}"] = True
+        
+        # Bug Analysis Display
+        if st.session_state.get(f"show_bug_analysis_{msg['id']}", False):
+            st.markdown("---")
+            with st.spinner("Running bug analysis..."):
                 try:
-                    # In a real app, we would call the API. For now, we'll use session state to hide it.
+                    response = requests.get(
+                        f"{API_BASE}/api/slack/integrations/bug-analysis/{msg['id']}",
+                        timeout=30
+                    )
+                    if response.status_code == 200:
+                        analysis = response.json()
+                        
+                        if analysis.get('is_bug'):
+                            st.markdown("### 🐛 Bug Analysis Pipeline")
+                            
+                            # Detection
+                            detection = analysis.get('detection', {})
+                            st.markdown("#### 1️⃣ Ticket Type Detection")
+                            col1, col2 = st.columns(2)
+                            col1.metric("Type", detection.get('ticket_type', 'unknown'))
+                            col2.metric("Needs Research", "No" if not detection.get('needs_research') else "Yes")
+                            st.info(f"**Reason:** {detection.get('reason', 'N/A')}")
+                            
+                            # Code Analysis
+                            code_analysis = analysis.get('code_analysis', {})
+                            patterns = code_analysis.get('patterns', {})
+                            
+                            st.markdown("#### 2️⃣ Extracted Patterns")
+                            pattern_cols = st.columns(4)
+                            if patterns.get('exception_types'):
+                                pattern_cols[0].metric("Exceptions", len(patterns['exception_types']))
+                                st.code(", ".join(patterns['exception_types']))
+                            if patterns.get('status_codes'):
+                                pattern_cols[1].metric("Status Codes", len(patterns['status_codes']))
+                                st.code(", ".join(patterns['status_codes']))
+                            if patterns.get('file_mentions'):
+                                pattern_cols[2].metric("Files", len(patterns['file_mentions']))
+                                st.code(", ".join(patterns['file_mentions']))
+                            
+                            if patterns.get('error_description'):
+                                st.info(f"**Error:** {patterns['error_description']}")
+                            if patterns.get('likely_cause'):
+                                st.warning(f"**Likely Cause:** {patterns['likely_cause']}")
+                            
+                            # Codebase Matches
+                            codebase_matches = code_analysis.get('codebase_matches', [])
+                            st.markdown("#### 3️⃣ Codebase Matches")
+                            if codebase_matches:
+                                st.success(f"Found {len(codebase_matches)} relevant file(s)")
+                                for match in codebase_matches[:3]:
+                                    with st.expander(f"📄 {match.get('file', 'unknown')}"):
+                                        if match.get('line'):
+                                            st.text(f"Line {match['line']}")
+                                        if match.get('snippet'):
+                                            st.code(match['snippet'], language='python')
+                            else:
+                                st.info("No codebase matches found")
+                            
+                            # Memory Matches
+                            memory_matches = code_analysis.get('memory_matches', [])
+                            st.markdown("#### 4️⃣ Institutional Memory Matches")
+                            if memory_matches:
+                                st.success(f"Found {len(memory_matches)} past solution(s)")
+                                for match in memory_matches:
+                                    with st.expander(f"🧠 {match.get('issue', 'Unknown Issue')} (Relevance: {match.get('relevance', 0):.0%})"):
+                                        st.text(f"**Context:** {match.get('context', 'N/A')}")
+                                        st.text(f"**Solution:** {match.get('solution', 'N/A')}")
+                            else:
+                                st.info("No institutional memory matches found")
+                            
+                            # Debugging Steps
+                            debugging_steps = code_analysis.get('debugging_steps', [])
+                            st.markdown("#### 5️⃣ Recommended Debugging Steps")
+                            if debugging_steps:
+                                for i, step in enumerate(debugging_steps, 1):
+                                    st.markdown(f"{i}. {step}")
+                            else:
+                                st.info("No debugging steps generated")
+                            
+                            # Summary
+                            summary = code_analysis.get('summary', '')
+                            if summary:
+                                st.markdown("#### 📊 Summary")
+                                st.info(summary)
+                            
+                            # Jira Preview
+                            jira_preview = analysis.get('jira_preview', {})
+                            if jira_preview:
+                                st.markdown("#### 🎫 Jira Ticket Preview")
+                                with st.expander("View formatted Jira description (ADF format)"):
+                                    st.json(jira_preview)
+                            
+                            if st.button("Close Analysis", key=f"close_analysis_bug_{msg['id']}"):
+                                st.session_state[f"show_bug_analysis_{msg['id']}"] = False
+                                st.rerun()
+                        else:
+                            st.info("This message is not classified as a bug. Use Exa research for other types.")
+                            if st.button("Close", key=f"close_analysis_notbug_{msg['id']}"):
+                                st.session_state[f"show_bug_analysis_{msg['id']}"] = False
+                                st.rerun()
+                    else:
+                        st.error(f"Error: {response.text}")
+                except Exception as e:
+                    st.error(f"Failed to analyze: {e}")
+            st.markdown("---")
+        
+        # Action Buttons (outside bug analysis block)
+        act1, act2, act3 = st.columns(3)
+        
+        if act1.button("🎫 Create Jira Ticket", key=f"jira_{msg['id']}", use_container_width=True):
+            st.session_state[f"show_jira_form_{msg['id']}"] = True
+            
+        if act2.button("📝 Create Notion Task", key=f"notion_{msg['id']}", use_container_width=True):
+            with st.spinner("Creating Notion task..."):
+                try:
+                    response = requests.post(
+                        f"{API_BASE}/api/slack/integrations/notion/create",
+                        params={"message_id": msg['id']},
+                        timeout=15
+                    )
+                    if response.status_code == 200:
+                        result = response.json()
+                        st.success(f"✅ Notion task created!")
+                        if result.get('notion_url'):
+                            st.markdown(f"[Open in Notion]({result['notion_url']})")
+                    elif response.status_code == 400:
+                        st.warning("Notion not configured. Set NOTION_API_KEY in .env")
+                    else:
+                        st.error(f"Failed: {response.text}")
+                except Exception as e:
+                    st.error(f"Connection failed: {e}")
+            
+        if act3.button("✅ Mark as Done", key=f"done_{msg['id']}", use_container_width=True):
+            try:
+                response = requests.post(
+                    f"{API_BASE}/api/slack/messages/{msg['id']}/archive",
+                    timeout=5
+                )
+                if response.status_code == 200:
+                    st.toast("✅ Archived!")
                     if 'archived_messages' not in st.session_state:
                         st.session_state.archived_messages = set()
                     st.session_state.archived_messages.add(msg['id'])
+                    st.cache_data.clear()
                     st.rerun()
-                except Exception as e:
-                    st.error(f"Failed to archive: {e}")
+                else:
+                    st.error(f"Failed to archive: {response.text}")
+            except Exception as e:
+                st.error(f"Failed to archive: {e}")
         
-            # If Jira form was requested
-            if st.session_state.get(f"show_jira_form_{msg['id']}", False):
-                st.markdown("---")
-                
-                # Header with inline styling so it's ALWAYS visible
-                st.markdown("""
-                <div style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); padding: 12px 16px; border-radius: 8px; margin-bottom: 16px;">
-                    <span style="color: white; font-weight: 700; font-size: 1.1rem;">🎫 Create Jira Ticket</span>
-                </div>
-                """, unsafe_allow_html=True)
-                
-                with st.form(key=f"jira_form_{msg['id']}"):
-                    summary = st.text_input("Summary", value=f"Slack: {msg.get('text')[:80]}...")
-                    issue_type = st.selectbox("Type", ["Bug", "Task", "Story", "Improvement"])
-                    description = st.text_area(
-                        "Description", 
-                        value=f"Reported by: {msg.get('user_name')}\nChannel: #{msg.get('channel_name')}\n\n{msg.get('text')}\n\nAnalysis:\n{msg.get('priority_reason')}",
-                        height=200
-                    )
-                    submitted = st.form_submit_button("🚀 Create Ticket", use_container_width=True)
-                
-                if submitted:
-                    with st.spinner("Creating ticket in Jira..."):
-                        try:
-                            # Use the correct endpoint with query params
-                            response = requests.post(
-                                f"{API_BASE}/api/slack/integrations/jira/create",
-                                params={
-                                    "message_id": msg['id'],
-                                    "summary": summary,
-                                    "description": description,
-                                    "issue_type": issue_type
-                                }
-                            )
-                            if response.status_code == 200:
-                                result = response.json()
-                                ticket_key = result.get('jira_ticket', {}).get('key', 'Created')
-                                st.success(f"✅ Ticket created! Key: {ticket_key}")
-                                st.session_state[f"show_jira_form_{msg['id']}"] = False
-                                import time
-                                time.sleep(1)
-                                st.rerun()
-                            else:
-                                st.error(f"Jira Error: {response.text}")
-                        except Exception as e:
-                            st.error(f"Connection failed: {e}")
-                
-                if st.button("Cancel", key=f"close_{msg['id']}"):
-                    st.session_state[f"show_jira_form_{msg['id']}"] = False
-                    st.rerun()
+        # If Jira form was requested
+        if st.session_state.get(f"show_jira_form_{msg['id']}", False):
+            st.markdown("---")
+            
+            st.markdown("""
+            <div style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); padding: 12px 16px; border-radius: 8px; margin-bottom: 16px;">
+                <span style="color: white; font-weight: 700; font-size: 1.1rem;">🎫 Create Jira Ticket</span>
+            </div>
+            """, unsafe_allow_html=True)
+            
+            with st.form(key=f"jira_form_{msg['id']}"):
+                summary = st.text_input("Summary", value=f"Slack: {msg.get('text')[:80]}...")
+                issue_type = st.selectbox("Type", ["Bug", "Task", "Story", "Improvement"])
+                st.info("💡 Exa research runs for comparisons, architecture decisions & best practices questions")
+                submitted = st.form_submit_button("🚀 Create Ticket", use_container_width=True)
+            
+            if submitted:
+                spinner_msg = "Creating ticket..." if issue_type == "Bug" else "Researching & creating ticket (~15-20s)..."
+                with st.spinner(spinner_msg):
+                    try:
+                        response = requests.post(
+                            f"{API_BASE}/api/slack/integrations/jira/create",
+                            params={
+                                "message_id": msg['id'],
+                                "summary": summary,
+                                "issue_type": issue_type
+                            },
+                            timeout=60
+                        )
+                        if response.status_code == 200:
+                            result = response.json()
+                            ticket_key = result.get('jira_key', 'Created')
+                            st.success(f"✅ Ticket created! Key: {ticket_key}")
+                            st.session_state[f"show_jira_form_{msg['id']}"] = False
+                            import time
+                            time.sleep(1)
+                            st.rerun()
+                        else:
+                            st.error(f"Jira Error: {response.text}")
+                    except Exception as e:
+                        st.error(f"Connection failed: {e}")
+            
+            if st.button("Cancel", key=f"close_{msg['id']}"):
+                st.session_state[f"show_jira_form_{msg['id']}"] = False
+                st.rerun()
 
 if __name__ == "__main__":
     main()

@@ -45,10 +45,15 @@ class CodeBugAnalyzer:
     
     async def analyze(self, message: Dict[str, Any]) -> Dict[str, Any]:
         """
-        Perform full bug analysis on a message.
-            
+        Perform bug analysis on a message.
+        
+        Simplified flow:
+        1. Extract error patterns (LLM) - identifies errors, files, likely cause
+        2. Find mentioned files (simple file find) - dogfooding the codebase
+        3. Generate PM summary (LLM) - plain-language context for delegation
+        
         Returns:
-            Dict with patterns, codebase_matches, memory_matches, debugging_steps
+            Dict with pm_summary (high-level) and engineer_context (detailed)
         """
         message_text = message.get('text', '')
         
@@ -60,24 +65,27 @@ class CodeBugAnalyzer:
                    f"{len(patterns.get('status_codes', []))} status codes, "
                    f"{len(patterns.get('file_mentions', []))} files")
         
-        # Step 2: Search codebase
-        codebase_matches = self.search_codebase(patterns)
-        logger.info(f"📂 Found {len(codebase_matches)} codebase matches")
+        # Step 2: Find mentioned files (simple, no LLM)
+        codebase_matches = self.find_mentioned_files(patterns)
+        logger.info(f"📂 Found {len(codebase_matches)} file(s) in codebase")
         
-        # Step 3: Match institutional memory
-        memory_matches = self.match_institutional_memory(patterns, message_text)
-        logger.info(f"🧠 Found {len(memory_matches)} relevant past issues")
+        # Step 3: Generate PM summary
+        pm_summary = await self.generate_pm_summary(patterns, codebase_matches, [], message_text)
+        logger.info(f"📝 Generated PM summary")
         
-        # Step 4: Generate debugging steps
-        debugging_steps = self.generate_debugging_steps(patterns, codebase_matches, memory_matches)
-        logger.info(f"🔧 Generated {len(debugging_steps)} debugging steps")
-        
+        # Structure output for dual audiences
         return {
+            "pm_summary": pm_summary,
+            "engineer_context": {
+                "patterns": patterns,
+                "affected_files": [m.get("file") for m in codebase_matches],
+                "codebase_matches": codebase_matches
+            },
+            # Keep legacy fields for backward compatibility
             "patterns": patterns,
             "codebase_matches": codebase_matches,
-            "memory_matches": memory_matches,
-            "debugging_steps": debugging_steps,
-            "summary": self._generate_summary(patterns, codebase_matches, memory_matches)
+            "memory_matches": [],
+            "summary": pm_summary
         }
     
     async def extract_error_patterns_llm(self, message_text: str) -> Dict[str, List[str]]:
@@ -202,37 +210,101 @@ Respond with ONLY valid JSON (no markdown):
         
         return patterns
     
-    def search_codebase(self, patterns: Dict[str, List[str]], max_results: int = 10) -> List[Dict[str, Any]]:
-        """Search the codebase for code related to the error patterns."""
+    def find_mentioned_files(self, patterns: Dict[str, List[str]]) -> List[Dict[str, Any]]:
+        """
+        Find files mentioned in the bug report.
+        Simple approach: if a file is mentioned, find it in the codebase.
+        No LLM, no complex grep - just file finding for dogfooding.
+        """
         matches = []
-        search_terms = []
         
-        # Build search terms from patterns
-        search_terms.extend(patterns.get("exception_types", []))
-        search_terms.extend(patterns.get("class_mentions", []))
-        
-        # Add file-specific searches
+        # Find files explicitly mentioned
         for file_name in patterns.get("file_mentions", []):
-            # Find the file and show relevant lines
             file_match = self._find_file(file_name)
             if file_match:
                 matches.append(file_match)
+                logger.info(f"📁 Found mentioned file: {file_name}")
         
-        # Grep for exception types and classes
-        for term in search_terms[:5]:  # Limit to avoid too many searches
-            grep_results = self._grep_codebase(term)
-            matches.extend(grep_results)
+        return matches
+    
+    async def generate_pm_summary(
+        self,
+        patterns: Dict[str, List[str]],
+        codebase_matches: List[Dict[str, Any]],
+        memory_matches: List[Dict[str, Any]],
+        message_text: str
+    ) -> str:
+        """
+        Generate a high-level PM summary using LLM.
+        Provides context for triage without requiring code knowledge.
+        """
+        if not self.openai_client:
+            return self._generate_summary_fallback(patterns, codebase_matches, memory_matches)
         
-        # Deduplicate and limit results
-        seen = set()
-        unique_matches = []
-        for match in matches:
-            key = f"{match['file']}:{match.get('line', 0)}"
-            if key not in seen:
-                seen.add(key)
-                unique_matches.append(match)
+        try:
+            # Build context for LLM
+            affected_files = list(set(m.get("file", "").split("/")[-1] for m in codebase_matches[:5] if m.get("file")))
+            past_issues = [{"issue": m.get("issue"), "solution": m.get("solution")[:150]} for m in memory_matches[:2]]
+            
+            prompt = f"""Generate a 2-3 sentence summary of this bug for a Product Manager to understand and triage.
+
+Bug Report: "{message_text}"
+
+Analysis found:
+- Error patterns: {patterns.get('exception_types', [])} {patterns.get('status_codes', [])}
+- Likely cause: {patterns.get('likely_cause', 'Unknown')}
+- Affected files: {affected_files}
+- Similar past issues: {past_issues if past_issues else 'None found'}
+
+Write a clear, non-technical summary that answers:
+1. What's the issue? (in plain language)
+2. Have we seen this before? (if yes, mention the past solution exists)
+3. What area of the product is affected?
+
+Keep it under 100 words. No bullet points, just flowing sentences."""
+
+            response = self.openai_client.chat.completions.create(
+                model="gpt-4o-mini",
+                messages=[
+                    {"role": "system", "content": "You are a technical writer helping PMs understand engineering issues. Be clear and concise."},
+                    {"role": "user", "content": prompt}
+                ],
+                temperature=0.3,
+                max_tokens=200
+            )
+            
+            summary = response.choices[0].message.content.strip()
+            logger.info(f"📝 Generated PM summary: {summary[:100]}...")
+            return summary
+            
+        except Exception as e:
+            logger.warning(f"LLM PM summary generation failed: {e}")
+            return self._generate_summary_fallback(patterns, codebase_matches, memory_matches)
+    
+    def _generate_summary_fallback(
+        self,
+        patterns: Dict[str, List[str]],
+        codebase_matches: List[Dict[str, Any]],
+        memory_matches: List[Dict[str, Any]]
+    ) -> str:
+        """Fallback summary when LLM is unavailable."""
+        parts = []
         
-        return unique_matches[:max_results]
+        if patterns.get("error_description"):
+            parts.append(patterns["error_description"])
+        elif patterns.get("status_codes"):
+            parts.append(f"HTTP {', '.join(patterns['status_codes'])} error detected.")
+        elif patterns.get("exception_types"):
+            parts.append(f"{', '.join(patterns['exception_types'])} error detected.")
+        
+        if memory_matches:
+            parts.append(f"Similar to past issue: '{memory_matches[0].get('issue', 'Unknown')}' - solution exists.")
+        
+        if codebase_matches:
+            files = list(set(m.get("file", "").split("/")[-1] for m in codebase_matches[:2]))
+            parts.append(f"Affects: {', '.join(files)}.")
+        
+        return " ".join(parts) if parts else "Bug report received. No specific patterns detected."
     
     def _find_file(self, file_name: str) -> Optional[Dict[str, Any]]:
         """Find a specific file in the backend directory."""

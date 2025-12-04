@@ -1,0 +1,23 @@
+# Response Style
+- Be concise and direct
+- Don't overcomplicate things
+- If unsure, ask for clarification instead of guessing
+
+# Project Goal
+Building a Slack automation tool that:
+- Filters critical messages for real-time notifications
+- Centralizes non-critical messages in a dashboard
+- Creates Jira tickets directly from the dashboard
+- Auto-researches tickets and adds context
+- Manages Notion to-do lists with Slack integration
+
+**Current Phase:** Demo/interview showcase for AI Product Manager role
+- Focus on core functionality over production hardening
+- Skip extensive logging and edge case handling for now
+- Design with future scalability in mind
+
+# Preferences
+- Add comments for clarity, skip obvious documentation
+- Keep tests simple and focused
+- Prioritize debuggability and maintainability over aesthetics
+- No unnecessary complexity

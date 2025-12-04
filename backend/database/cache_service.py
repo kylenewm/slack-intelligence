@@ -6,7 +6,7 @@ Handles CRUD operations and deduplication.
 import logging
 from sqlalchemy.orm import Session
 from typing import Optional, Dict, Any, List
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 
 from .models import SlackMessage, MessageInsight, SyncLog, UserPreference
 from .db import SessionLocal
@@ -163,7 +163,7 @@ class CacheService:
                 message.priority_score = priority_score
                 message.priority_reason = priority_reason
                 message.category = category
-                message.processed_at = datetime.utcnow()
+                message.processed_at = datetime.now(timezone.utc)
             
             db.commit()
             db.refresh(insight)
@@ -223,6 +223,31 @@ class CacheService:
             db.close()
     
     @staticmethod
+    def archive_message(message_id: int) -> bool:
+        """
+        Archive a message (mark as done).
+        
+        Args:
+            message_id: Database primary key ID
+            
+        Returns:
+            True if successful, False if message not found
+        """
+        db = SessionLocal()
+        try:
+            message = db.query(SlackMessage).filter(
+                SlackMessage.id == message_id
+            ).first()
+            
+            if message:
+                message.archived = True
+                db.commit()
+                return True
+            return False
+        finally:
+            db.close()
+    
+    @staticmethod
     def get_messages_by_category(
         category: str,
         hours_ago: int = 24,
@@ -243,7 +268,7 @@ class CacheService:
         """
         db = SessionLocal()
         try:
-            since = datetime.utcnow() - timedelta(hours=hours_ago)
+            since = datetime.now(timezone.utc).replace(tzinfo=None) - timedelta(hours=hours_ago)
             
             query = db.query(SlackMessage).filter(
                 SlackMessage.category == category,
@@ -274,7 +299,7 @@ class CacheService:
         """Get messages within a score range"""
         db = SessionLocal()
         try:
-            since = datetime.utcnow() - timedelta(hours=hours_ago)
+            since = datetime.now(timezone.utc).replace(tzinfo=None) - timedelta(hours=hours_ago)
             
             messages = db.query(SlackMessage).filter(
                 SlackMessage.priority_score >= min_score,
@@ -323,8 +348,8 @@ class CacheService:
                 status=status,
                 errors=errors or [],
                 error_message=error_message,
-                started_at=datetime.utcnow() - timedelta(seconds=duration_seconds),
-                completed_at=datetime.utcnow()
+                started_at=datetime.now(timezone.utc) - timedelta(seconds=duration_seconds),
+                completed_at=datetime.now(timezone.utc)
             )
             
             db.add(sync_log)
@@ -425,7 +450,7 @@ class CacheService:
                 existing.key_channels = prefs.get("key_channels", [])
                 existing.key_keywords = prefs.get("key_keywords", [])
                 existing.mute_channels = prefs.get("mute_channels", [])
-                existing.updated_at = datetime.utcnow()
+                existing.updated_at = datetime.now(timezone.utc)
             else:
                 # Create new
                 existing = UserPreference(

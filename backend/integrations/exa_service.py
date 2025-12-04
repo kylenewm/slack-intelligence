@@ -82,16 +82,19 @@ Channel: #{message.get('channel_name', 'unknown')}
 Sender: {message.get('user_name', 'unknown')}
 
 RULES:
-- needs_research=true ONLY for questions that require external information:
-  • Technology comparisons ("X vs Y")
-  • Best practices questions
-  • Architecture decisions
-  • Competitive analysis
+- needs_research=true ONLY when ALL of these are true:
+  1. There's a SPECIFIC question or task that can be answered with external research
+  2. The question is about external topics (tools, frameworks, industry practices)
+  3. The message has enough context to form a meaningful search query
+  
+  Examples where needs_research=true:
+  • "Should we use Pinecone vs pgvector for our vector DB?" (specific tech comparison)
+  • "What's the best practice for rate limiting APIs?" (specific best practice)
+  
 - needs_research=false for:
   • Bug reports (use internal code analysis instead)
-  • Status updates
-  • Meeting notes
-  • Simple tasks
+  • Status updates, meeting notes, simple tasks
+  • Vague internal discussions 
 
 Respond with ONLY valid JSON (no markdown):
 {{
@@ -154,24 +157,39 @@ RULES:
 4. Keep it under 30 words
 5. Do NOT add generic terms like "best practices" unless specifically asked
 
-EXAMPLES:
-- "pgvector vs Pinecone?" 
-  → "What are the performance and scaling differences between pgvector and Pinecone for vector similarity search?"
+EXAMPLES (for format, not exhaustive):
 
-- "Should we use OAuth or SAML for enterprise auth?"
-  → "What are the tradeoffs between OAuth and SAML for B2B SaaS enterprise authentication?"
+Comparisons:
+- "The data team is asking about event tracking. Mixpanel vs Amplitude - any quick takes?"
+  → "What are the tradeoffs between Mixpanel and Amplitude for SaaS event tracking?"
 
-- "WebSockets or polling for real-time?"
-  → "How do WebSockets compare to long polling for real-time notifications at scale?"
+Open-ended exploration:
+- "Someone mentioned feature flags. Worth looking into?"
+  → "What are the benefits of feature flags and when should a startup adopt them?"
 
-- "Best CI/CD for Python FastAPI?"
-  → "What are the recommended CI/CD tools for Python FastAPI applications in 2024?"
+Uncertainty/gaps:
+- "Legal is asking about GDPR again. I think we're compliant but not sure what we're missing"
+  → "What are the key GDPR compliance requirements for a SaaS application handling user data?"
+
+Yes/no with implications:
+- "Customer just asked if we support webhooks. Do we? Should we?"
+  → "What are best practices for implementing webhook support in a SaaS product?"
+
+Strategy questions:
+- "Users keep asking for a mobile app. Not sure if we should do native or just improve the responsive site"
+  → "What factors should determine whether to build a native mobile app vs improving mobile web experience?"
+
+Vendor/tool evaluation:
+- "Sales is pushing for Salesforce integration. How complex is this typically?"
+  → "What is the typical complexity and timeline for building a Salesforce CRM integration?"
+
+NOTE: These examples show the transformation style. If the message doesn't fit these patterns, use your best judgment to create a clear, searchable question. The goal is a natural language question that would return useful web results.
 
 Your question (ONLY the question, no explanation):"""
 
         try:
             response = self.openai_client.chat.completions.create(
-                model="gpt-4o-mini",
+                model="gpt-4.1-mini",
                 messages=[{"role": "user", "content": prompt}],
                 temperature=0.3,
                 max_tokens=100
@@ -274,11 +292,20 @@ Your question (ONLY the question, no explanation):"""
         if not self.openai_client or not sources:
             return ""
         
-        # Combine Exa summaries (already concise)
-        summaries = "\n".join([
-            f"- **{s.get('title', 'Source')}**: {s.get('summary', '')[:250]}"
-            for s in sources[:5]
-        ])
+        # Combine Exa summaries (full) and full text for all 5 sources
+        source_content = []
+        for i, s in enumerate(sources[:5], 1):
+            title = s.get('title', 'Source')
+            summary = s.get('summary', '')  # Full summary, no truncation
+            text = s.get('text', '')  # Full text (up to 1000 chars from Exa)
+            
+            content = f"### Source {i}: {title}\n"
+            content += f"**Summary:** {summary}\n"
+            if text:
+                content += f"**Full Content:** {text}\n"
+            source_content.append(content)
+        
+        combined_sources = "\n".join(source_content)
         
         # Tailor prompt based on research type
         type_guidance = {
@@ -293,8 +320,8 @@ Your question (ONLY the question, no explanation):"""
 
 **Question:** {query}
 
-**Research Summaries:**
-{summaries}
+**Research Sources (with full content):**
+{combined_sources}
 
 **Your Task:** {guidance}
 
@@ -312,7 +339,7 @@ Keep the total response under 200 words. Be specific and actionable."""
         try:
             logger.info("🧠 Synthesizing research findings...")
             response = self.openai_client.chat.completions.create(
-                model="gpt-4o-mini",
+                model="gpt-4.1-mini",
                 messages=[
                     {"role": "system", "content": "You are a senior technical advisor. Provide concise, actionable recommendations based on research findings."},
                     {"role": "user", "content": prompt}

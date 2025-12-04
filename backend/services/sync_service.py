@@ -4,7 +4,7 @@ Sync service - orchestrates message fetching and prioritization.
 
 import logging
 from typing import List, Dict, Any, Optional
-from datetime import datetime
+from datetime import datetime, timezone
 import time
 
 from ..config import settings
@@ -158,7 +158,7 @@ class SyncService:
                 "alerts": alerts_result,
                 "action_items": action_items_result,
                 "notion": notion_result,
-                "timestamp": datetime.utcnow().isoformat()
+                "timestamp": datetime.now(timezone.utc).isoformat()
             }
             
         except Exception as e:
