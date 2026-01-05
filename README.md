@@ -1,12 +1,5 @@
 # Slack Intelligence
 
-> **Status:** ✅ Production-Ready | 100% Test Coverage | 14/14 Tests Passing  
-> **Live Demo:** (Add after Railway deployment)
-
-[![Python](https://img.shields.io/badge/python-3.9+-blue)]()
-[![Tests](https://img.shields.io/badge/tests-14%2F14%20passing-brightgreen)]()
-[![License](https://img.shields.io/badge/license-MIT-green)]()
-
 AI-powered Slack inbox prioritization and smart search system. Turn your overwhelming Slack notifications into a manageable, prioritized inbox using AI.
 
 ## 🎯 What It Does
