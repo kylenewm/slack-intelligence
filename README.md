@@ -86,7 +86,6 @@ railway login && railway init && railway up
 
 See [docs/DEPLOYMENT.md](docs/DEPLOYMENT.md) for full deployment guide including environment variables and production migration.
 
-## 💰 Cost: ~$15/month
 
 ## 📚 Documentation
 
