@@ -1,4 +1,4 @@
-# Traverse.ai Identity
+# Traverse.ai Identity (fake company for demo)
 
 **Company Name:** Traverse.ai  
 **Product Name:** Traverse Core (Enterprise Slack Middleware)  
@@ -126,9 +126,3 @@ We process enterprise communications. Data minimization, encryption, and audit l
 - ❌ "Our AI magic makes your messages smarter!"
 
 ---
-
-## Contact
-
-**Website:** traverse.ai (coming soon)  
-**GitHub:** github.com/traverse-ai  
-**Support:** support@traverse.ai
